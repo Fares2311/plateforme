@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow unauthenticated reads on users collection (for email/username uniqueness checks during registration)
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // All other collections require authentication
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
