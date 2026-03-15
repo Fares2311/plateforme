@@ -159,20 +159,21 @@ export default function CalendarPage() {
         <div className="container fade-enter" style={{ maxWidth: '1000px', padding: '2rem 1.5rem' }}>
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h2 className="flex items-center gap-2 m-0">
-                        <Calendar className="text-primary" /> Mon Calendrier
+                    <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '4px' }}>Planning</p>
+                    <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, color: '#f4f4f5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Calendar size={22} style={{ color: '#818cf8', flexShrink: 0 }} /> Mon Calendrier
                     </h2>
-                    <p className="text-secondary m-0 mt-1 text-sm">Toutes vos sessions planifiées, tous salons confondus</p>
+                    <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.88rem', margin: '4px 0 0' }}>Toutes vos sessions planifiées, tous salons confondus</p>
                 </div>
-                <div className="flex gap-2">
-                    <button className={`btn btn-sm ${view === 'month' ? 'btn-primary' : 'btn-ghost text-secondary'}`} onClick={() => setView('month')}>
-                        📅 Mois
-                    </button>
-                    <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-ghost text-secondary'}`} onClick={() => setView('list')}>
-                        📋 Liste
-                    </button>
+                {/* View toggle */}
+                <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '3px', gap: '2px' }}>
+                    {([['month','📅 Mois'],['list','📋 Liste']] as const).map(([v, label]) => (
+                        <button key={v} onClick={() => setView(v)} style={{ padding: '7px 18px', borderRadius: '9px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', border: view === v ? '1px solid rgba(99,102,241,0.35)' : '1px solid transparent', background: view === v ? 'rgba(99,102,241,0.15)' : 'transparent', color: view === v ? '#818cf8' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 

@@ -12,6 +12,7 @@ import { useLocale } from '@/context/LocaleContext';
 import { useUI } from '@/context/UIContext';
 import CalendarPicker from '@/components/CalendarPicker';
 import Avatar from '@/components/Avatar';
+import { FloatingAiAssistant } from '@/components/ui/glowing-ai-chat-assistant';
 
 // Format hours: < 1h → "Xmin", ≥ 1h → up to 2 decimal places
 const fmtHours = (h: number) => h < 1 ? `${Math.round(h * 60)}min` : `${parseFloat(h.toFixed(2))}h`;
@@ -1084,7 +1085,7 @@ export default function ObjectiveDetail() {
     ));
 
     return (
-        <div className="container py-8 max-w-md mx-auto" style={{ maxWidth: '900px' }}>
+        <div style={{ paddingLeft: '228px', paddingRight: '3rem', paddingTop: '2rem', paddingBottom: '3rem', minHeight: '100vh' }}>
             <style>{`
                 @keyframes fadeOverlay {
                     from { opacity: 0; }
@@ -1102,9 +1103,19 @@ export default function ObjectiveDetail() {
             `}</style>
 
             {/* Hero Section */}
-            <div className="card card-glass text-center mb-8 fade-enter" style={{ position: 'relative', overflow: 'hidden', padding: '4rem 2rem' }}>
+            <div className="card-glass fade-enter" style={{
+                position: 'relative', overflow: 'hidden',
+                padding: '3rem 3.5rem', marginBottom: '2.5rem', borderRadius: '24px',
+                border: '1px solid rgba(99,102,241,0.18)',
+                background: 'linear-gradient(135deg, #13131c 0%, #181825 100%)',
+                boxShadow: '0 4px 64px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05) inset',
+            }}>
+                <div style={{ position: 'absolute', top: '-120px', right: '-80px', width: '500px', height: '400px', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
+                <div style={{ position: 'absolute', bottom: '-80px', left: '30%', width: '350px', height: '250px', background: 'radial-gradient(circle, rgba(236,72,153,0.07) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
+
+                {/* Creator action buttons */}
                 {user?.uid === objective.creator_id && (
-                    <div className="flex flex-col gap-2" style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10 }}>
+                    <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10, display: 'flex', gap: '8px' }}>
                         <button
                             onClick={() => {
                                 setEditObjTitle(objective.title);
@@ -1117,214 +1128,211 @@ export default function ObjectiveDetail() {
                                 setShowEditObjModal(true);
                                 setNavbarVisible(false);
                             }}
-                            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                            className="hover:text-white hover:bg-white/10 transition-all"
-                            title="Modifier le salon"
+                            style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
                         >
-                            <Edit3 size={16} /> <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Modifier le salon</span>
+                            <Edit3 size={14} /> Modifier
                         </button>
                         <button
                             onClick={handleDeleteObjective}
-                            style={{ padding: '10px 16px', background: 'rgba(239,68,68,0.05)', borderRadius: '12px', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                            className="hover:bg-red-500/10 hover:text-red-400 transition-all"
-                            title="Supprimer le salon"
+                            style={{ padding: '7px 12px', background: 'rgba(239,68,68,0.07)', borderRadius: '10px', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
                         >
-                            <Trash2 size={16} /> <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Supprimer le salon</span>
+                            <Trash2 size={14} />
                         </button>
                     </div>
                 )}
-                <div className="flex flex-wrap gap-2 mb-6">
-                    {Array.isArray(objective.category) ? (
-                        objective.category.map((cat: string) => (
-                            <div key={cat} className="badge" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
-                                <Hash size={14} style={{ marginRight: '4px' }} /> {cat}
-                            </div>
-                        ))
-                    ) : (
-                        <div className="badge" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
-                            <Hash size={14} style={{ marginRight: '4px' }} /> {objective.category}
-                        </div>
-                    )}
-                </div>
-                <h1 className="mb-4 text-gradient" style={{ fontSize: '3rem' }}>{objective.title}</h1>
 
-                {/* Stats row */}
-                <div className="flex justify-center gap-6 mb-8 flex-wrap">
-                    <div className="stat-box" style={{ width: '130px' }}>
-                        <div className="stat-value text-primary">{fmtHours(totalCompleted)}</div>
-                        <div className="stat-label">{t('room_completed')}</div>
-                    </div>
-                    <div className="stat-box" style={{ width: '130px' }}>
-                        <div className="stat-value">{objective.target_hours}h</div>
-                        <div className="stat-label">
-                            {objective.goal_frequency === 'daily' ? '/ jour' : objective.goal_frequency === 'weekly' ? '/ semaine' : objective.goal_frequency === 'monthly' ? '/ mois' : 'Target'}
-                        </div>
-                    </div>
-                    <div className="stat-box" style={{ width: '130px' }}>
-                        <div className="stat-value text-secondary">{memberships.length}</div>
-                        <div className="stat-label">{t('room_active_members')}</div>
-                    </div>
-                    {milestonesTotal > 0 && (
-                        <div className="stat-box" style={{ width: '130px' }}>
-                            <div className="stat-value" style={{ color: '#a855f7' }}>{milestonesDone}/{milestonesTotal}</div>
-                            <div className="stat-label">Étapes groupe</div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Composite progress */}
-                <div className="w-full max-w-lg mx-auto mt-4">
-                    <div className="flex justify-between mb-2 text-sm font-bold">
-                        <span>{t('room_progress')}</span>
-                        <span className="text-primary" style={{ fontSize: '1.1rem' }}>{globalPerc}%</span>
-                    </div>
-
-                    {/* Stacked composite bar */}
-                    <div style={{ height: '14px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)' }}>
-                        {/* Hours segment */}
-                        <div style={{ width: `${hoursPerc * 0.4}%`, background: 'var(--color-primary)', transition: 'width 0.8s ease', minWidth: hoursPerc > 0 ? '2px' : 0 }} />
-                        {/* Milestones segment */}
-                        {milestonesTotal > 0 && <div style={{ width: `${milestonesPerc * 0.4}%`, background: 'var(--color-secondary)', transition: 'width 0.8s ease', minWidth: milestonesPerc > 0 ? '2px' : 0 }} />}
-                        {/* Sessions segment */}
-                        {sessionsTotal > 0 && <div style={{ width: `${sessionsPerc * 0.2}%`, background: '#a855f7', transition: 'width 0.8s ease', minWidth: sessionsPerc > 0 ? '2px' : 0 }} />}
-                    </div>
-
-                    {/* Legend */}
-                    <div className="flex flex-wrap gap-4 justify-center mt-3" style={{ fontSize: '0.78rem', opacity: 0.7 }}>
-                        <span className="flex items-center gap-1">
-                            <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'var(--color-primary)' }} />
-                            Heures ({hoursPerc}%)
-                        </span>
-                        {milestonesTotal > 0 && (
-                            <span className="flex items-center gap-1">
-                                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'var(--color-secondary)' }} />
-                                Étapes ({milestonesPerc}%)
-                            </span>
-                        )}
-                        {sessionsTotal > 0 && (
-                            <span className="flex items-center gap-1">
-                                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: '#a855f7' }} />
-                                Sessions ({sessionsPerc}%)
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Live Focus Section */}
-                <div className="mt-8" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-
-                    {/* Who's working now */}
-                    {(() => {
-                        const working = memberships.filter(m => isAlive(presenceMap[m.user_id]));
-                        const workingCount = working.length;
-                        return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minHeight: '28px' }}>
-                                {workingCount > 0 ? (
-                                    <>
-                                        <div style={{ display: 'flex' }}>
-                                            {working.slice(0, 5).map((m, i) => (
-                                                <div key={m.user_id} style={{ marginLeft: i > 0 ? '-10px' : 0, position: 'relative', zIndex: 5 - i }}>
-                                                    <Avatar uid={m.user_id} avatarUrl={m.user.avatar_url} avatarStyle={m.user.avatar_style} size={26} style={{ border: '2px solid #10b981', borderRadius: '50%' }} />
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 600 }}>
-                                            {workingCount === 1
-                                                ? `${working[0].user.full_name?.split(' ')[0] || 'Un membre'} travaille maintenant`
-                                                : `${workingCount} membres travaillent maintenant`}
-                                        </span>
-                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 0 2px rgba(16,185,129,0.3)', animation: 'pulse 2s infinite', display: 'inline-block' }} />
-                                    </>
-                                ) : (
-                                    <span style={{ fontSize: '0.82rem', color: '#71717a' }}>Personne ne travaille pour l'instant</span>
-                                )}
-                            </div>
-                        );
-                    })()}
-
-                    {/* Focus toggle button */}
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        <button
-                            onClick={toggleFocus}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '10px',
-                                padding: '14px 28px', borderRadius: '16px', fontWeight: 700,
-                                fontSize: '1rem', cursor: 'pointer',
-                                transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
-                                background: isWorking ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg,#6366f1,#4f46e5)',
-                                color: isWorking ? '#10b981' : '#fff',
-                                border: isWorking ? '1px solid rgba(16,185,129,0.4)' : 'none',
-                                boxShadow: isWorking ? '0 0 20px rgba(16,185,129,0.2)' : '0 8px 24px rgba(99,102,241,0.35)',
-                            }}
-                        >
-                            <Zap size={18} strokeWidth={2.5} style={{ fill: isWorking ? 'currentColor' : 'none' }} />
-                            {isWorking ? 'Je m\'arrête' : 'Je commence à travailler'}
-                        </button>
-
-                        <Link
-                            href={`/session?id=${objective.id}`}
-                            className="btn btn-outline btn-lg"
-                            style={{
-                                padding: '14px 20px', borderRadius: '16px',
-                                display: 'flex', alignItems: 'center', gap: '10px',
-                                position: 'relative',
-                                background: liveRoomCount > 0 ? 'rgba(16,185,129,0.08)' : undefined,
-                                borderColor: liveRoomCount > 0 ? 'rgba(16,185,129,0.35)' : undefined,
-                                color: liveRoomCount > 0 ? '#10b981' : undefined,
-                            }}
-                        >
-                            <Video size={18} />
-                            Coworking live
-                            {liveRoomCount > 0 && (
-                                <span style={{
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                    background: 'rgba(16,185,129,0.15)',
-                                    border: '1px solid rgba(16,185,129,0.3)',
-                                    borderRadius: 6, padding: '2px 8px',
-                                    fontSize: '0.72rem', fontWeight: 700, color: '#10b981',
-                                    whiteSpace: 'nowrap',
-                                }}>
-                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', animation: 'pulse 1.5s infinite', display: 'inline-block' }} />
-                                    {liveRoomCount} en direct
-                                </span>
+                {/* 2-column layout */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '4rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                    {/* LEFT: identity + actions */}
+                    <div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginBottom: '1.25rem' }}>
+                            {Array.isArray(objective.category) ? (
+                                objective.category.map((cat: string) => (
+                                    <div key={cat} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '999px', padding: '3px 12px', fontSize: '0.78rem', fontWeight: 600, color: '#a5b4fc' }}>
+                                        <Hash size={11} /> {cat}
+                                    </div>
+                                ))
+                            ) : (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '999px', padding: '3px 12px', fontSize: '0.78rem', fontWeight: 600, color: '#a5b4fc' }}>
+                                    <Hash size={11} /> {objective.category}
+                                </div>
                             )}
-                        </Link>
+                        </div>
+                        <h1 className="text-gradient" style={{ fontSize: '2.6rem', margin: '0 0 0.9rem', lineHeight: 1.15, letterSpacing: '-0.03em' }}>{objective.title}</h1>
+                        {objective.description && (
+                            <p style={{ margin: '0 0 1.75rem', opacity: 0.62, lineHeight: 1.75, maxWidth: '580px', fontSize: '0.98rem', color: 'var(--color-text-secondary)' }}>
+                                {objective.description.slice(0, 180)}{objective.description.length > 180 ? '…' : ''}
+                            </p>
+                        )}
+
+                        {/* Live working status */}
+                        {(() => {
+                            const working = memberships.filter(m => isAlive(presenceMap[m.user_id]));
+                            return working.length > 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem' }}>
+                                    <div style={{ display: 'flex' }}>
+                                        {working.slice(0, 5).map((m, i) => (
+                                            <div key={m.user_id} style={{ marginLeft: i > 0 ? '-8px' : 0, position: 'relative', zIndex: 5 - i }}>
+                                                <Avatar uid={m.user_id} avatarUrl={m.user.avatar_url} avatarStyle={m.user.avatar_style} size={26} style={{ border: '2px solid #10b981', borderRadius: '50%' }} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 600 }}>
+                                        {working.length === 1 ? `${working[0].user.full_name?.split(' ')[0] || 'Un membre'} travaille maintenant` : `${working.length} membres travaillent maintenant`}
+                                    </span>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 0 2px rgba(16,185,129,0.3)', animation: 'pulse 2s infinite', display: 'inline-block' }} />
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3f3f46', display: 'inline-block' }} />
+                                    <span style={{ fontSize: '0.82rem', color: '#71717a' }}>Personne ne travaille pour l'instant</span>
+                                </div>
+                            );
+                        })()}
+
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={toggleFocus}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                    padding: '13px 24px', borderRadius: '14px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
+                                    transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+                                    background: isWorking ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                                    color: isWorking ? '#10b981' : '#fff',
+                                    border: isWorking ? '1px solid rgba(16,185,129,0.4)' : 'none',
+                                    boxShadow: isWorking ? '0 0 20px rgba(16,185,129,0.2)' : '0 8px 24px rgba(99,102,241,0.35)',
+                                }}
+                            >
+                                <Zap size={17} strokeWidth={2.5} style={{ fill: isWorking ? 'currentColor' : 'none' }} />
+                                {isWorking ? "Je m'arrête" : 'Je commence à travailler'}
+                            </button>
+                            <Link
+                                href={`/session?id=${objective.id}`}
+                                className="btn btn-outline"
+                                style={{ padding: '13px 20px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '10px', background: liveRoomCount > 0 ? 'rgba(16,185,129,0.08)' : undefined, borderColor: liveRoomCount > 0 ? 'rgba(16,185,129,0.35)' : undefined, color: liveRoomCount > 0 ? '#10b981' : undefined }}
+                            >
+                                <Video size={17} /> Coworking live
+                                {liveRoomCount > 0 && (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, padding: '2px 7px', fontSize: '0.7rem', fontWeight: 700, color: '#10b981' }}>
+                                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', animation: 'pulse 1.5s infinite', display: 'inline-block' }} />
+                                        {liveRoomCount} en direct
+                                    </span>
+                                )}
+                            </Link>
+                        </div>
+                        {isWorking && (() => {
+                            const startedAt = presenceMap[user?.uid ?? '']?.started_at;
+                            return startedAt ? <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: '#10b981', opacity: 0.7 }}>Session en cours ⚡</div> : null;
+                        })()}
                     </div>
 
-                    {isWorking && (() => {
-                        const startedAt = presenceMap[user?.uid ?? '']?.started_at;
-                        return startedAt ? (
-                            <div style={{ fontSize: '0.8rem', color: '#10b981', opacity: 0.7 }}>
-                                Session en cours ⚡
+                    {/* RIGHT: stats + progress */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.875rem' }}>
+                            <div style={{ background: 'rgba(99,102,241,0.09)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#818cf8', lineHeight: 1 }}>{fmtHours(totalCompleted)}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '6px', fontWeight: 600 }}>{t('room_completed')}</div>
                             </div>
-                        ) : null;
-                    })()}
+                            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.85rem', fontWeight: 800, lineHeight: 1 }}>{objective.target_hours}h</div>
+                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '6px', fontWeight: 600 }}>{objective.goal_frequency === 'daily' ? 'Obj./jour' : objective.goal_frequency === 'weekly' ? 'Obj./sem.' : objective.goal_frequency === 'monthly' ? 'Obj./mois' : 'Objectif'}</div>
+                            </div>
+                            <div style={{ background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.2)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#f472b6', lineHeight: 1 }}>{memberships.length}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '6px', fontWeight: 600 }}>Membres</div>
+                            </div>
+                            {milestonesTotal > 0 ? (
+                                <div style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#c084fc', lineHeight: 1 }}>{milestonesDone}/{milestonesTotal}</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '6px', fontWeight: 600 }}>Étapes</div>
+                                </div>
+                            ) : (
+                                <div style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.18)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#34d399', lineHeight: 1 }}>
+                                        {sessions.filter(s => { const d = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at); return d > new Date(); }).length}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '6px', fontWeight: 600 }}>Sessions</div>
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '1.25rem 1.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.45, fontWeight: 700 }}>Progression globale</span>
+                                <span style={{ color: '#818cf8', fontWeight: 900, fontSize: '1.5rem', lineHeight: 1 }}>{globalPerc}%</span>
+                            </div>
+                            <div style={{ height: '10px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', overflow: 'hidden', display: 'flex', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)', marginBottom: '12px' }}>
+                                <div style={{ width: `${hoursPerc * 0.4}%`, background: 'var(--color-primary)', transition: 'width 0.8s ease', minWidth: hoursPerc > 0 ? '2px' : 0 }} />
+                                {milestonesTotal > 0 && <div style={{ width: `${milestonesPerc * 0.4}%`, background: 'var(--color-secondary)', transition: 'width 0.8s ease', minWidth: milestonesPerc > 0 ? '2px' : 0 }} />}
+                                {sessionsTotal > 0 && <div style={{ width: `${sessionsPerc * 0.2}%`, background: '#a855f7', transition: 'width 0.8s ease', minWidth: sessionsPerc > 0 ? '2px' : 0 }} />}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', fontSize: '0.72rem', opacity: 0.55 }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '3px', background: 'var(--color-primary)' }} />Heures {hoursPerc}%</span>
+                                {milestonesTotal > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '3px', background: 'var(--color-secondary)' }} />Étapes {milestonesPerc}%</span>}
+                                {sessionsTotal > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '3px', background: '#a855f7' }} />Sessions {sessionsPerc}%</span>}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Tabs Nav */}
-            <nav className="tabs-nav mt-8">
-                <button className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}><LayoutDashboard size={16} /> {t('room_tab_overview')}</button>
-                <button className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}><MessageSquare size={16} /> {t('room_tab_chat')}</button>
-                <button className={`tab-btn ${activeTab === 'ai-chat' ? 'active' : ''}`} onClick={() => setActiveTab('ai-chat')}><Bot size={16} /> {t('room_tab_ai')}</button>
-                <button className={`tab-btn ${activeTab === 'agenda' ? 'active' : ''}`} onClick={() => setActiveTab('agenda')}><Calendar size={16} /> {t('room_tab_agenda')}</button>
-                <button className={`tab-btn ${activeTab === 'milestones' ? 'active' : ''}`} onClick={() => setActiveTab('milestones')}><CheckSquare size={16} /> {t('room_tab_milestones')}</button>
-                <button className={`tab-btn ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}><BarChart2 size={16} /> {t('room_tab_polls')}</button>
-                <button className={`tab-btn ${activeTab === 'resources' ? 'active' : ''}`} onClick={() => setActiveTab('resources')}><LinkIcon size={16} /> {t('room_tab_resources')}</button>
+            {/* Lateral Nav — fixed in left gutter */}
+            <nav style={{
+                position: 'fixed', top: '90px', left: '16px', width: '188px',
+                display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 50,
+                background: 'rgba(10,10,20,0.95)', backdropFilter: 'blur(24px)',
+                border: '1px solid rgba(255,255,255,0.09)', borderRadius: '18px',
+                padding: '10px', boxShadow: '0 8px 36px rgba(0,0,0,0.5)',
+            }}>
+                <div style={{ padding: '4px 6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '0.63rem', opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', fontWeight: 700 }}>Objectif</div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                        {objective.title}
+                    </div>
+                </div>
+                {([
+                    { id: 'overview',   Icon: LayoutDashboard, label: t('room_tab_overview') },
+                    { id: 'chat',       Icon: MessageSquare,   label: t('room_tab_chat') },
+                    { id: 'ai-chat',    Icon: Bot,             label: t('room_tab_ai') },
+                    { id: 'agenda',     Icon: Calendar,        label: t('room_tab_agenda') },
+                    { id: 'milestones', Icon: CheckSquare,     label: t('room_tab_milestones') },
+                    { id: 'polls',      Icon: BarChart2,       label: t('room_tab_polls') },
+                    { id: 'resources',  Icon: LinkIcon,        label: t('room_tab_resources') },
+                ] as const).map(({ id, Icon, label }) => {
+                    const active = activeTab === id;
+                    return (
+                        <button key={id} onClick={() => setActiveTab(id)} style={{
+                            display: 'flex', alignItems: 'center', gap: '9px',
+                            padding: '9px 12px', borderRadius: '10px', border: 'none',
+                            background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15))' : 'transparent',
+                            color: active ? '#c4b5fd' : 'rgba(255,255,255,0.45)',
+                            cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.82rem', fontWeight: active ? 600 : 400,
+                            textAlign: 'left', width: '100%', transition: 'all 0.15s',
+                            boxShadow: active ? '0 0 0 1px rgba(99,102,241,0.3)' : 'none',
+                        }}
+                        onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.75)'; }}}
+                        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)'; }}}
+                        >
+                            <Icon size={15} style={{ flexShrink: 0, opacity: active ? 1 : 0.6 }} />
+                            <span>{label}</span>
+                        </button>
+                    );
+                })}
             </nav>
 
-            <div className="tabs-content">
+            <div className="tabs-content relative" style={{ width: '100%' }}>
                 {/* TAB: OVERVIEW */}
                 {activeTab === 'overview' && (
-                    <div className="tab-pane active fade-enter" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div className="tab-pane active fade-enter">
+                        {/* Overview content */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
 
                         {/* Description card */}
                         {objective.description && (
-                            <div className="card card-glass fade-enter" style={{ borderLeft: '3px solid var(--color-primary)' }}>
-                                <h4 className="flex items-center gap-2 m-0 mb-3" style={{ fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.6 }}>
+                            <div className="card card-glass fade-enter" style={{ borderLeft: '4px solid var(--color-primary)', padding: '1.5rem 1.75rem' }}>
+                                <h4 className="flex items-center gap-2 m-0 mb-4" style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5, fontWeight: 700 }}>
                                     📋 Description
                                 </h4>
-                                <p style={{ margin: 0, lineHeight: 1.7, opacity: 0.85 }}>{objective.description}</p>
+                                <p style={{ margin: 0, lineHeight: 1.8, opacity: 0.88, fontSize: '1rem' }}>{objective.description}</p>
                             </div>
                         )}
 
@@ -1367,56 +1375,6 @@ export default function ObjectiveDetail() {
                             </a>
                         )}
 
-                        {/* Quick stats row */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
-                            {/* Category */}
-                            <div className="card card-glass text-center" style={{ padding: '1rem' }}>
-                                <div style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>📁</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {Array.isArray(objective.category) ? (
-                                        objective.category.map((cat: string) => (
-                                            <div key={cat} style={{ fontWeight: 700, fontSize: '0.9rem', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '8px' }}>{cat}</div>
-                                        ))
-                                    ) : (
-                                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{objective.category}</div>
-                                    )}
-                                </div>
-                                <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '2px' }}>Catégorie</div>
-                            </div>
-                            {/* Target hours */}
-                            <div className="card card-glass text-center" style={{ padding: '1rem' }}>
-                                <div style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>⏱</div>
-                                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{objective.target_hours}h {objective.goal_frequency === 'daily' ? '/ jour' : objective.goal_frequency === 'weekly' ? '/ semaine' : objective.goal_frequency === 'monthly' ? '/ mois' : ''}</div>
-                                <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '2px' }}>Objectif / membre</div>
-                            </div>
-                            {/* Members */}
-                            <div className="card card-glass text-center" style={{ padding: '1rem' }}>
-                                <div style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>👥</div>
-                                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{memberships.length}</div>
-                                <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '2px' }}>Membres actifs</div>
-                            </div>
-                            {/* Milestones */}
-                            {milestones.length > 0 && (
-                                <div className="card card-glass text-center" style={{ padding: '1rem' }}>
-                                    <div style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>✅</div>
-                                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{milestones.filter(m => m.completed).length}/{milestones.length}</div>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '2px' }}>Étapes groupe</div>
-                                </div>
-                            )}
-                            {/* Upcoming sessions */}
-                            {sessions.length > 0 && (
-                                <div className="card card-glass text-center" style={{ padding: '1rem' }}>
-                                    <div style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>📅</div>
-                                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                                        {sessions.filter(s => {
-                                            const d = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
-                                            return d > new Date();
-                                        }).length}
-                                    </div>
-                                    <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '2px' }}>Sessions à venir</div>
-                                </div>
-                            )}
-                        </div>
 
                         {/* Next session preview */}
                         {(() => {
@@ -1581,12 +1539,17 @@ export default function ObjectiveDetail() {
                             );
                         })()}
 
+                        </div>{/* END Overview content */}
+
                         {/* Members section */}
-                        <div style={{ marginTop: '1.5rem' }}>
-                            <h4 className="flex items-center gap-2 mb-4" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.6 }}>
-                                <Users size={15} /> Membres ({memberships.length})
-                            </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                        <div style={{ marginTop: '1rem' }}>
+                            <div className="flex items-center justify-between mb-5" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+                                <h3 className="flex items-center gap-2 m-0" style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                                    <Users size={18} style={{ color: 'var(--color-primary)' }} /> Membres
+                                </h3>
+                                <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.35)', fontWeight: 600, background: 'rgba(255,255,255,0.06)', padding: '4px 12px', borderRadius: '20px' }}>{memberships.length} membre{memberships.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
                                 {memberships.map((m, i) => {
                                     const memberPerc = Math.min(100, Math.round(((m.completed_hours ?? 0) / (objective.target_hours || 1)) * 100));
                                     const isMe = m.user_id === user?.uid;
@@ -1685,33 +1648,40 @@ export default function ObjectiveDetail() {
                 {/* TAB: CHAT */}
                 {activeTab === 'chat' && (
                     <div className="tab-pane active fade-enter">
-                        <div className="card card-glass flex flex-col" style={{ height: '540px' }}>
-                            {/* Chat Header */}
-                            <div className="flex justify-between items-center px-4 pt-4 mb-2">
-                                <h4 className="flex gap-2 items-center text-secondary m-0"><MessageSquare size={16} /> {t('room_chat_title')}</h4>
+                        <div style={{ height: 'calc(100vh - 180px)', minHeight: 640, display: 'flex', flexDirection: 'column', background: 'rgba(8,8,16,0.85)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+
+                            {/* ── Header ── */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <MessageSquare size={15} style={{ color: '#818cf8' }} />
+                                    </div>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: '#f0f0f8', letterSpacing: '-0.01em' }}>{t('room_chat_title')}</p>
+                                        <p style={{ margin: 0, fontSize: '0.67rem', color: 'rgba(255,255,255,0.25)' }}>{messages.length} message{messages.length !== 1 ? 's' : ''}</p>
+                                    </div>
+                                </div>
+                                {(objective?.pinned_messages || []).length > 0 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.72rem', color: 'rgba(165,180,252,0.7)', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 8, padding: '4px 10px' }}>
+                                        <Pin size={11} /> {(objective.pinned_messages as string[]).length} épinglé{(objective.pinned_messages as string[]).length > 1 ? 's' : ''}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Pinned Messages Banner */}
+                            {/* ── Pinned banner ── */}
                             {(objective?.pinned_messages || []).length > 0 && (() => {
-                                const pinned = (objective.pinned_messages as string[])
-                                    .map((pid: string) => messages.find(m => m.id === pid))
-                                    .filter(Boolean);
+                                const pinned = (objective.pinned_messages as string[]).map((pid: string) => messages.find(m => m.id === pid)).filter(Boolean);
                                 if (!pinned.length) return null;
                                 return (
-                                    <div style={{ margin: '0 1rem 0.5rem', borderRadius: '10px', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(165,180,252,0.8)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-                                            <Pin size={11} /> Messages épinglés
-                                        </div>
+                                    <div style={{ borderBottom: '1px solid rgba(99,102,241,0.15)', background: 'rgba(99,102,241,0.05)', padding: '8px 22px', flexShrink: 0 }}>
                                         {pinned.map((m: any) => (
-                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    <span style={{ fontWeight: 600, color: 'rgba(165,180,252,0.9)', marginRight: '5px' }}>{m.user_name}:</span>
-                                                    {m.content}
+                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <Pin size={10} style={{ color: '#818cf8', flexShrink: 0 }} />
+                                                <span style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                                    <span style={{ fontWeight: 700, color: '#a5b4fc', marginRight: 5 }}>{m.user_name}</span>{m.content}
                                                 </span>
                                                 {objective?.creator_id === user?.uid && (
-                                                    <button onClick={() => handlePinMessage(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '2px', flexShrink: 0 }} title="Désépingler">
-                                                        <X size={13} />
-                                                    </button>
+                                                    <button onClick={() => handlePinMessage(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', padding: 2, flexShrink: 0, display: 'flex' }} title="Désépingler"><X size={12} /></button>
                                                 )}
                                             </div>
                                         ))}
@@ -1719,116 +1689,125 @@ export default function ObjectiveDetail() {
                                 );
                             })()}
 
-                            {/* Messages list */}
-                            <div className="flex-grow overflow-y-auto mb-4 px-4 custom-scrollbar" id="chat-messages" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {/* ── Messages ── */}
+                            <div id="chat-messages" className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px 22px' }}>
                                 {messages.length === 0 ? (
-                                    <p className="text-center text-secondary my-auto">Aucun message pour le moment. Dites bonjour !</p>
-                                ) : (
-                                    messages.map((msg) => {
-                                        const isMe = msg.user_id === user?.uid;
-                                        const isSystem = msg.user_id === 'ai-coach';
-                                        const reactions: Record<string, string[]> = msg.reactions || {};
-                                        const isCreator = objective?.creator_id === user?.uid;
-                                        const isPinned = (objective?.pinned_messages || []).includes(msg.id);
-                                        const canPin = isCreator && ((objective?.pinned_messages || []).length < 3 || isPinned);
-                                        return (
-                                            <div
-                                                key={msg.id}
-                                                className={`chat-message ${isMe ? 'me' : ''} ${isSystem ? 'justify-center my-2' : ''}`}
-                                                style={{ position: 'relative' }}
-                                                onMouseEnter={() => setHoverMsgId(msg.id)}
-                                                onMouseLeave={() => setHoverMsgId(null)}
-                                            >
-                                                {isSystem ? (
-                                                    <div className="p-4 text-center rounded-lg shadow-glow" style={{ background: 'rgba(236, 72, 153, 0.1)', border: '1px solid var(--color-primary)' }}>
-                                                        <span className="font-bold text-primary mb-2 block">{msg.user_name}</span>
-                                                        <span className="opacity-90">{msg.content}</span>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        {!isMe && (
-                                                            <Avatar
-                                                                uid={msg.user_id}
-                                                                avatarUrl={memberships.find(m => m.user_id === msg.user_id)?.user?.avatar_url}
-                                                                avatarStyle={memberships.find(m => m.user_id === msg.user_id)?.user?.avatar_style}
-                                                                size={32}
-                                                            />
-                                                        )}
-                                                        <div style={{ maxWidth: '75%', position: 'relative' }}>
-                                                            <div className={`chat-meta ${isMe ? 'justify-end' : ''}`}>
-                                                                <span className="font-bold text-primary">{isMe ? 'Vous' : msg.user_name}</span>
-                                                                <span>{msg.created_at ? new Date(msg.created_at.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'À l\'instant'}</span>
-                                                                {isPinned && <Pin size={11} style={{ color: 'rgba(165,180,252,0.7)' }} />}
-                                                            </div>
-                                                            <div className={`chat-bubble ${isMe ? 'bg-primary text-white' : ''}`}>{msg.content}</div>
+                                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.3 }}>
+                                        <MessageSquare size={32} />
+                                        <p style={{ margin: 0, fontSize: '0.875rem' }}>Aucun message pour le moment. Dites bonjour !</p>
+                                    </div>
+                                ) : messages.map((msg, idx) => {
+                                    const isMe = msg.user_id === user?.uid;
+                                    const isSystem = msg.user_id === 'system' || msg.type === 'system';
+                                    const reactions: Record<string, string[]> = msg.reactions || {};
+                                    const hasReactions = Object.entries(reactions).some(([, u]) => (u as string[]).length > 0);
+                                    const isCreator = objective?.creator_id === user?.uid;
+                                    const isPinned = (objective?.pinned_messages || []).includes(msg.id);
+                                    const canPin = isCreator && ((objective?.pinned_messages || []).length < 3 || isPinned);
+                                    const time = msg.created_at ? new Date(msg.created_at.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '…';
+                                    const prevMsg = messages[idx - 1];
+                                    const sameAsPrev = prevMsg?.user_id === msg.user_id && prevMsg?.type !== 'system' && msg.user_id !== 'system';
 
-                                                            {/* Reaction counts below bubble */}
-                                                            {Object.entries(reactions).filter(([, uids]) => (uids as string[]).length > 0).length > 0 && (
-                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                                                                    {Object.entries(reactions).filter(([, uids]) => (uids as string[]).length > 0).map(([emoji, uids]) => (
-                                                                        <button
-                                                                            key={emoji}
-                                                                            onClick={() => handleToggleReaction(msg.id, emoji)}
-                                                                            style={{
-                                                                                display: 'flex', alignItems: 'center', gap: '3px',
-                                                                                padding: '2px 8px', borderRadius: '20px', fontSize: '13px',
-                                                                                border: (uids as string[]).includes(user?.uid || '') ? '1px solid rgba(99,102,241,0.7)' : '1px solid rgba(255,255,255,0.12)',
-                                                                                background: (uids as string[]).includes(user?.uid || '') ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)',
-                                                                                cursor: 'pointer', transition: 'all 0.15s',
-                                                                            }}
-                                                                        >
-                                                                            {emoji} <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>{(uids as string[]).length}</span>
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
+                                    if (isSystem) return (
+                                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.05)', padding: '4px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)' }}>{msg.content}</span>
+                                        </div>
+                                    );
+
+                                    return (
+                                        <div key={msg.id} style={{ marginTop: sameAsPrev ? 2 : 14, position: 'relative' }}
+                                            onMouseEnter={() => setHoverMsgId(msg.id)} onMouseLeave={() => setHoverMsgId(null)}>
+
+                                            {isMe ? (
+                                                /* ── MY message: right-aligned bubble ── */
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <div style={{ maxWidth: '68%' }}>
+                                                        {!sameAsPrev && (
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+                                                                <span style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.22)' }}>{time}</span>
+                                                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#818cf8' }}>Vous</span>
+                                                                {isPinned && <Pin size={10} style={{ color: '#818cf8' }} />}
+                                                            </div>
+                                                        )}
+                                                        <div style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', borderRadius: `${sameAsPrev ? 6 : 18}px 18px ${sameAsPrev ? 6 : 4}px 18px`, padding: '9px 14px', color: '#fff', fontSize: '0.875rem', lineHeight: 1.6, wordBreak: 'break-word', boxShadow: '0 2px 14px rgba(79,70,229,0.28)' }}>
+                                                            {msg.content}
                                                         </div>
-
-                                                        {/* Hover action bar: reactions + pin */}
-                                                        {hoverMsgId === msg.id && (
-                                                            <div
-                                                                style={{
-                                                                    position: 'absolute', top: '-32px',
-                                                                    [isMe ? 'right' : 'left']: '0',
-                                                                    display: 'flex', alignItems: 'center', gap: '2px',
-                                                                    background: 'rgba(20,20,35,0.95)', borderRadius: '10px',
-                                                                    border: '1px solid rgba(255,255,255,0.1)', padding: '4px 6px',
-                                                                    boxShadow: '0 4px 16px rgba(0,0,0,0.4)', zIndex: 10,
-                                                                }}
-                                                            >
-                                                                {QUICK_REACTIONS.map(emoji => (
-                                                                    <button
-                                                                        key={emoji}
-                                                                        onClick={() => handleToggleReaction(msg.id, emoji)}
-                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px', borderRadius: '6px', transition: 'transform 0.1s' }}
-                                                                        title={emoji}
-                                                                    >
-                                                                        {emoji}
-                                                                    </button>
-                                                                ))}
-                                                                {(canPin || isPinned) && (
-                                                                    <button
-                                                                        onClick={() => handlePinMessage(msg.id)}
-                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: '6px', color: isPinned ? 'rgba(165,180,252,1)' : 'rgba(255,255,255,0.4)', marginLeft: '2px' }}
-                                                                        title={isPinned ? 'Désépingler' : 'Épingler'}
-                                                                    >
-                                                                        <Pin size={14} />
-                                                                    </button>
-                                                                )}
+                                                        {hasReactions && (
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4, justifyContent: 'flex-end' }}>
+                                                                {Object.entries(reactions).filter(([, u]) => (u as string[]).length > 0).map(([emoji, uids]) => {
+                                                                    const mine = (uids as string[]).includes(user?.uid || '');
+                                                                    return <button key={emoji} onClick={() => handleToggleReaction(msg.id, emoji)} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, fontSize: 12, border: mine ? '1px solid rgba(99,102,241,0.6)' : '1px solid rgba(255,255,255,0.1)', background: mine ? 'rgba(99,102,241,0.14)' : 'rgba(255,255,255,0.04)', cursor: 'pointer' }}>{emoji} <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>{(uids as string[]).length}</span></button>;
+                                                                })}
                                                             </div>
                                                         )}
-                                                    </>
-                                                )}
-                                            </div>
-                                        );
-                                    })
-                                )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* ── THEIR message: Discord style ── */
+                                                <div style={{ display: 'flex', gap: 10 }}>
+                                                    <div style={{ width: 34, flexShrink: 0 }}>
+                                                        {!sameAsPrev
+                                                            ? <Avatar uid={msg.user_id} avatarUrl={memberships.find(m => m.user_id === msg.user_id)?.user?.avatar_url} avatarStyle={memberships.find(m => m.user_id === msg.user_id)?.user?.avatar_style} size={34} />
+                                                            : <span style={{ display: 'block', textAlign: 'right', fontSize: '0.56rem', color: 'rgba(255,255,255,0.16)', paddingTop: 5 }}>{time}</span>
+                                                        }
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        {!sameAsPrev && (
+                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 3 }}>
+                                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#a5b4fc' }}>{msg.user_name}</span>
+                                                                <span style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.22)' }}>{time}</span>
+                                                                {isPinned && <Pin size={10} style={{ color: '#818cf8' }} />}
+                                                            </div>
+                                                        )}
+                                                        <p style={{ margin: 0, fontSize: '0.875rem', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, wordBreak: 'break-word' }}>{msg.content}</p>
+                                                        {hasReactions && (
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                                                                {Object.entries(reactions).filter(([, u]) => (u as string[]).length > 0).map(([emoji, uids]) => {
+                                                                    const mine = (uids as string[]).includes(user?.uid || '');
+                                                                    return <button key={emoji} onClick={() => handleToggleReaction(msg.id, emoji)} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, fontSize: 12, border: mine ? '1px solid rgba(99,102,241,0.6)' : '1px solid rgba(255,255,255,0.1)', background: mine ? 'rgba(99,102,241,0.14)' : 'rgba(255,255,255,0.04)', cursor: 'pointer' }}>{emoji} <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>{(uids as string[]).length}</span></button>;
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Hover toolbar */}
+                                            {hoverMsgId === msg.id && (
+                                                <div style={{ position: 'absolute', top: 0, [isMe ? 'left' : 'right']: 0, transform: 'translateY(-100%) translateY(-4px)', display: 'flex', alignItems: 'center', gap: 1, background: 'rgba(14,14,26,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '3px 5px', boxShadow: '0 6px 24px rgba(0,0,0,0.5)', zIndex: 10 }}>
+                                                    {QUICK_REACTIONS.map(emoji => (
+                                                        <button key={emoji} onClick={() => handleToggleReaction(msg.id, emoji)}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: '3px 4px', borderRadius: 6, transition: 'transform 0.1s, background 0.1s', lineHeight: 1 }}
+                                                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.3)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                                                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'none'; }}
+                                                        >{emoji}</button>
+                                                    ))}
+                                                    {(canPin || isPinned) && (
+                                                        <button onClick={() => handlePinMessage(msg.id)}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: 6, borderLeft: '1px solid rgba(255,255,255,0.08)', marginLeft: 2, color: isPinned ? '#a5b4fc' : 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center' }}
+                                                            title={isPinned ? 'Désépingler' : 'Épingler'}>
+                                                            <Pin size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
 
-                            <form onSubmit={handleSendMessage} className="flex gap-2 p-4 pt-0 mt-auto">
-                                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} className="input flex-grow" placeholder={t('room_chat_placeholder')} required autoComplete="off" />
-                                <button type="submit" className="btn btn-primary"><Send size={16} /></button>
-                            </form>
+                            {/* ── Input ── */}
+                            <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                <form onSubmit={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '6px 6px 6px 16px', transition: 'border-color 0.15s' }}
+                                    onFocusCapture={e => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)')}
+                                    onBlurCapture={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)')}>
+                                    <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={t('room_chat_placeholder')} required autoComplete="off"
+                                        style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.9rem', color: '#f0f0f8', padding: 0 }} />
+                                    <button type="submit" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: newMessage.trim() ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'rgba(255,255,255,0.05)', border: 'none', cursor: newMessage.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', boxShadow: newMessage.trim() ? '0 2px 10px rgba(79,70,229,0.35)' : 'none' }}>
+                                        <Send size={15} style={{ color: newMessage.trim() ? '#fff' : 'rgba(255,255,255,0.25)', marginLeft: 1 }} />
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1836,48 +1815,91 @@ export default function ObjectiveDetail() {
                 {/* TAB: AI CHAT */}
                 {activeTab === 'ai-chat' && (
                     <div className="tab-pane active fade-enter">
-                        <div className="card card-glass flex flex-col" style={{ height: '500px', background: 'rgba(236, 72, 153, 0.02)', border: '1px solid rgba(236, 72, 153, 0.2)' }}>
-                            <div className="flex justify-between items-center px-4 pt-4 mb-2">
-                                <h4 className="flex gap-2 items-center text-primary m-0"><Bot size={16} /> {t('room_ai_coach_title')}</h4>
+                        <div style={{ height: 'calc(100vh - 180px)', minHeight: 640, display: 'flex', flexDirection: 'column', background: 'rgba(8,6,16,0.9)', borderRadius: 18, border: '1px solid rgba(236,72,153,0.18)', overflow: 'hidden' }}>
+
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px', borderBottom: '1px solid rgba(236,72,153,0.12)', background: 'rgba(236,72,153,0.03)', flexShrink: 0 }}>
+                                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(236,72,153,0.12)', border: '1px solid rgba(236,72,153,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Bot size={15} style={{ color: '#f472b6' }} />
+                                </div>
+                                <div>
+                                    <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: '#f0f0f8' }}>{t('room_ai_coach_title')}</p>
+                                    <p style={{ margin: 0, fontSize: '0.67rem', color: 'rgba(255,255,255,0.25)' }}>Propulsé par Claude · Contexte de l'objectif chargé</p>
+                                </div>
                             </div>
 
-                            <div className="flex-grow overflow-y-auto mb-4 px-4 custom-scrollbar" id="ai-chat-messages" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Messages */}
+                            <div id="ai-chat-messages" className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {aiMessages.length === 0 ? (
-                                    <div className="text-center text-secondary my-auto p-4 flex flex-col items-center">
-                                        <Bot size={48} className="text-primary mb-4 opacity-50" />
-                                        <p>{t('room_ai_coach_empty').replace('{}', objective.title)}</p>
+                                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: 0.4 }}>
+                                        <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Bot size={24} style={{ color: '#f472b6' }} />
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', textAlign: 'center', maxWidth: 260, lineHeight: 1.5 }}>{t('room_ai_coach_empty').replace('{}', objective.title)}</p>
                                     </div>
-                                ) : (
-                                    aiMessages.map((msg, i) => {
-                                        const isMe = msg.user_id === user?.uid;
-                                        const isSystem = msg.user_id === 'ai-coach';
-                                        return (
-                                            <div key={i} className={`chat-message ${isMe ? 'me' : ''}`}>
-                                                {!isMe && isSystem && <div className="p-2 rounded-full bg-primary-light text-primary flex items-center justify-center" style={{ width: '2rem', height: '2rem' }}><Bot size={16} /></div>}
-                                                <div>
-                                                    <div className={`chat-meta ${isMe ? 'justify-end' : ''}`}>
-                                                        <span className={`font-bold ${isSystem ? 'text-primary' : 'text-secondary'}`}>{isMe ? 'Vous' : msg.user_name}</span>
-                                                        <span>{msg.created_at ? new Date(msg.created_at.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'À l\'instant'}</span>
-                                                    </div>
-                                                    <div className={`chat-bubble ${isMe ? 'bg-secondary text-white' : isSystem ? 'border border-primary bg-primary-light text-white' : ''}`} style={isSystem ? { padding: '1rem', lineHeight: '1.5' } : {}}>{msg.content}</div>
+                                ) : aiMessages.map((msg, i) => {
+                                    const isMe = msg.user_id === user?.uid;
+                                    const isAI = msg.user_id === 'ai-coach';
+                                    const time = msg.created_at ? new Date(msg.created_at.toMillis()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '…';
+                                    const prevMsg = aiMessages[i - 1];
+                                    const sameAsPrev = prevMsg?.user_id === msg.user_id;
+
+                                    if (isMe) return (
+                                        <div key={i} style={{ marginTop: sameAsPrev ? 2 : 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                            <div style={{ maxWidth: '68%' }}>
+                                                {!sameAsPrev && <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 6, marginBottom: 4 }}><span style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.22)' }}>{time}</span><span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c084fc' }}>Vous</span></div>}
+                                                <div style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)', borderRadius: `${sameAsPrev ? 6 : 18}px 18px ${sameAsPrev ? 6 : 4}px 18px`, padding: '9px 14px', color: '#fff', fontSize: '0.875rem', lineHeight: 1.6, wordBreak: 'break-word', boxShadow: '0 2px 14px rgba(168,85,247,0.25)' }}>
+                                                    {msg.content}
                                                 </div>
                                             </div>
-                                        )
-                                    })
-                                )}
+                                        </div>
+                                    );
+
+                                    return (
+                                        <div key={i} style={{ marginTop: sameAsPrev ? 2 : 12, display: 'flex', gap: 10 }}>
+                                            <div style={{ width: 34, flexShrink: 0 }}>
+                                                {!sameAsPrev && (
+                                                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(236,72,153,0.12)', border: '1px solid rgba(236,72,153,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        {isAI ? <Bot size={15} style={{ color: '#f472b6' }} /> : <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f472b6' }}>{msg.user_name?.[0]}</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                {!sameAsPrev && <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 3 }}><span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f9a8d4' }}>{isAI ? 'Coach IA' : msg.user_name}</span><span style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.22)' }}>{time}</span></div>}
+                                                <div style={{ background: 'rgba(236,72,153,0.07)', border: '1px solid rgba(236,72,153,0.15)', borderRadius: `${sameAsPrev ? 6 : 4}px 18px 18px 18px`, padding: '10px 14px', color: 'rgba(255,255,255,0.88)', fontSize: '0.875rem', lineHeight: 1.65, wordBreak: 'break-word' }}>
+                                                    {msg.content}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                                 {callingCoach && (
-                                    <div className="chat-message border border-primary bg-primary-light text-white rounded-lg p-3 w-max" style={{ opacity: 0.7 }}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="loader" style={{ width: '1rem', height: '1rem', borderRadius: '50%', border: '2px solid var(--color-bg)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div>
-                                            <span>{t('room_ai_thinking')}</span>
+                                    <div style={{ marginTop: 8, display: 'flex', gap: 10 }}>
+                                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(236,72,153,0.12)', border: '1px solid rgba(236,72,153,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <Bot size={15} style={{ color: '#f472b6' }} />
+                                        </div>
+                                        <div style={{ background: 'rgba(236,72,153,0.07)', border: '1px solid rgba(236,72,153,0.15)', borderRadius: '4px 18px 18px 18px', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <div style={{ display: 'flex', gap: 3 }}>
+                                                {[0,1,2].map(n => <span key={n} style={{ width: 5, height: 5, borderRadius: '50%', background: '#f472b6', animation: `typing-dot 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
+                                            </div>
+                                            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)' }}>{t('room_ai_thinking')}</span>
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            <form onSubmit={handleCallCoach} className="flex gap-2 p-4 pt-0 mt-auto">
-                                <input type="text" value={newAiMessage} onChange={(e) => setNewAiMessage(e.target.value)} className="input flex-grow" placeholder={t('room_ai_coach_placeholder')} required autoComplete="off" />
-                                <button type="submit" className="btn btn-primary" disabled={callingCoach}><Send size={16} /></button>
-                            </form>
+
+                            {/* Input */}
+                            <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(236,72,153,0.1)' }}>
+                                <form onSubmit={handleCallCoach} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(236,72,153,0.18)', borderRadius: 14, padding: '6px 6px 6px 16px', transition: 'border-color 0.15s' }}
+                                    onFocusCapture={e => (e.currentTarget.style.borderColor = 'rgba(236,72,153,0.4)')}
+                                    onBlurCapture={e => (e.currentTarget.style.borderColor = 'rgba(236,72,153,0.18)')}>
+                                    <input type="text" value={newAiMessage} onChange={(e) => setNewAiMessage(e.target.value)} placeholder={t('room_ai_coach_placeholder')} required autoComplete="off"
+                                        style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.9rem', color: '#f0f0f8', padding: 0 }} />
+                                    <button type="submit" disabled={callingCoach} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: newAiMessage.trim() && !callingCoach ? 'linear-gradient(135deg,#be185d,#ec4899)' : 'rgba(255,255,255,0.05)', border: 'none', cursor: newAiMessage.trim() && !callingCoach ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                                        <Send size={15} style={{ color: newAiMessage.trim() && !callingCoach ? '#fff' : 'rgba(255,255,255,0.25)', marginLeft: 1 }} />
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -2510,9 +2532,9 @@ export default function ObjectiveDetail() {
                     <div className="tab-pane active fade-enter">
 
                         {/* ── Section 1: Fichiers & liens partagés ── */}
-                        <div className="flex justify-between items-start mb-5 flex-wrap gap-3" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+                        <div className="flex justify-between items-start mb-6 flex-wrap gap-3" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1.25rem' }}>
                             <div>
-                                <h4 className="flex items-center gap-2 m-0"><FileUp className="text-primary" size={18} /> Fichiers & liens partagés</h4>
+                                <h3 className="flex items-center gap-2 m-0" style={{ fontSize: '1.15rem' }}><FileUp className="text-primary" size={20} /> Fichiers & liens partagés</h3>
                                 <p className="text-sm text-secondary m-0 mt-1">Partagés avec tous les membres du salon</p>
                             </div>
                             <button
@@ -2586,9 +2608,9 @@ export default function ObjectiveDetail() {
                                 <p className="text-sm opacity-50 mt-1">Ajoutez des documents, liens ou ressources utiles pour tous les membres.</p>
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-3 mb-8">
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
                                 {sharedFiles.map((f, idx) => (
-                                    <div key={f.id} className="card card-glass fade-enter flex items-center gap-4" style={{ animationDelay: `${idx * 0.06}s`, background: 'rgba(255,255,255,0.02)' }}>
+                                    <div key={f.id} className="card card-glass fade-enter flex items-center gap-4" style={{ animationDelay: `${idx * 0.06}s`, background: 'rgba(255,255,255,0.02)', padding: '1.1rem 1.3rem' }}>
                                         <div className={`p-2.5 rounded-lg flex-shrink-0 ${f.type === 'file' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
                                             {f.type === 'file' ? <FileText size={18} /> : <LinkIcon size={18} />}
                                         </div>
@@ -2623,9 +2645,9 @@ export default function ObjectiveDetail() {
                         )}
 
                         {/* ── Section 2: Ressources IA ── */}
-                        <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1.25rem', marginBottom: '1.25rem' }}>
-                            <h4 className="flex items-center gap-2 m-0 mb-1"><Bot className="text-secondary" size={18} /> Ressources générées par l&apos;IA</h4>
-                            <p className="text-sm text-secondary m-0 mb-4">Suggestions et tutoriels adaptés à votre objectif</p>
+                        <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1.25rem', marginBottom: '1.5rem' }}>
+                            <h3 className="flex items-center gap-2 m-0 mb-1" style={{ fontSize: '1.15rem' }}><Bot className="text-secondary" size={20} /> Ressources générées par l&apos;IA</h3>
+                            <p className="text-sm text-secondary m-0 mb-5">Suggestions et tutoriels adaptés à votre objectif</p>
 
                             {/* Prompt input */}
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
@@ -3011,6 +3033,22 @@ export default function ObjectiveDetail() {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Floating AI assistant — available on all tabs */}
+            {objective && (
+                <FloatingAiAssistant context={{
+                    id: typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '',
+                    type: 'objective',
+                    title: objective.title || '',
+                    description: objective.description || '',
+                    category: objective.category || '',
+                    members: memberships.map((m: any) => ({ name: m.user_name || m.display_name || 'Membre' })),
+                    recentMessages: messages.slice(-15).map((m: any) => ({ user_name: m.user_name || 'Inconnu', content: m.content || '' })),
+                    milestones: milestones.map((ms: any) => ({ text: ms.text, completed: ms.completed })),
+                    resources: resources.map((r: any) => ({ text: r.text })),
+                    currentUserName: user?.displayName || user?.email || undefined,
+                }} />
             )}
         </div>
     );

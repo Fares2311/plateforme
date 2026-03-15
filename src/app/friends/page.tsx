@@ -194,15 +194,19 @@ export default function Friends() {
     };
 
     return (
-        <div className="container py-8 max-w-md mx-auto fade-enter" style={{ maxWidth: '800px' }}>
+        <div className="container py-10 mx-auto fade-enter" style={{ maxWidth: '820px' }}>
             {/* Header */}
-            <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
-                <h1 className="flex items-center gap-3" style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, background: 'linear-gradient(to right, #fff, #a1a1aa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    <Users size={26} style={{ color: 'var(--color-primary)', WebkitTextFillColor: 'initial' }} /> {t('friends_title')}
-                </h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '4px' }}>Réseau social</p>
+                    <h1 style={{ fontSize: 'clamp(1.6rem, 3vw, 2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, color: '#f4f4f5' }}>
+                        {t('friends_title')}
+                    </h1>
+                </div>
                 {pendingReceived.length > 0 && tab !== 'requests' && (
-                    <button className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }} onClick={() => setTab('requests')}>
-                        {pendingReceived.length} demande{pendingReceived.length > 1 ? 's' : ''}
+                    <button onClick={() => setTab('requests')} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '20px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                        {pendingReceived.length} demande{pendingReceived.length > 1 ? 's' : ''} en attente
                     </button>
                 )}
             </div>

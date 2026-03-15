@@ -146,18 +146,20 @@ select {
 
 /* Glass / Frosted Card — solid enough background so content is always readable */
 .card-glass {
-    background-color: #16161a;
-    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--radius-lg);
+    background-color: #15151a;
+    background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.005) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
     padding: var(--space-6);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    transition: border-color var(--transition-normal), transform var(--transition-normal);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 16px rgba(0,0,0,0.25);
+    transition: border-color var(--transition-normal), transform var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .card-glass:hover {
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.3);
 }
 
 /* Glass Panel — used for modals and floating surfaces; no padding so callers set their own */
@@ -229,9 +231,9 @@ select {
 
 /* Stat Box */
 .stat-box {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    border-radius: 14px;
     padding: var(--space-4);
     text-align: center;
     backdrop-filter: blur(8px);
@@ -259,19 +261,6 @@ select {
     letter-spacing: 0.05em;
 }
 
-/* Enhanced Cards */
-.card-glass {
-    background: linear-gradient(145deg, rgba(30, 30, 36, 0.7) 0%, rgba(18, 18, 20, 0.4) 100%);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-}
-
-.card-glass:hover {
-    border-color: rgba(99, 102, 241, 0.3);
-    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15);
-}
 
 /* User Row */
 .user-row {
@@ -349,12 +338,12 @@ select {
     width: fit-content;
     max-width: 100%;
     background: var(--color-bg-surface-elevated);
-    padding: 0.55rem 0.9rem;
-    border-radius: 16px;
+    padding: 0.75rem 1.1rem;
+    border-radius: 18px;
     border-top-left-radius: 4px;
     border: 1px solid var(--color-border);
-    font-size: 0.9rem;
-    line-height: 1.5;
+    font-size: 0.975rem;
+    line-height: 1.6;
     word-break: break-word;
     white-space: pre-wrap;
 }
@@ -373,7 +362,7 @@ select {
 }
 
 .chat-meta {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--color-text-tertiary);
     margin-bottom: var(--space-1);
     display: flex;

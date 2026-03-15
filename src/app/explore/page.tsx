@@ -199,69 +199,54 @@ export default function Explore() {
 
     return (
         <div style={{ minHeight: '100vh' }}>
-            {/* Hero header */}
-            <div
-                className="text-center fade-enter"
-                style={{
-                    padding: '4rem 1.5rem 3rem'
-                }}
-            >
-                <div className="flex items-center justify-center gap-2 mb-3" style={{ opacity: 0.7, fontSize: '0.85rem', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
-                    <Compass size={14} /> Explorer
+            {/* ── Hero ── */}
+            <div className="fade-enter" style={{ padding: '4.5rem 1.5rem 3rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: '700px', height: '300px', background: 'radial-gradient(ellipse, rgba(99,102,241,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '4px 14px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, color: '#818cf8', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
+                    <Compass size={11} /> Explorer la communauté
                 </div>
-                <h1
-                    className="text-gradient mb-3"
-                    style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', lineHeight: 1.1 }}
-                >
+                <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: '1rem' }}
+                    className="text-gradient">
                     {t('explore_title')}
                 </h1>
-                <p className="text-secondary max-w-xl mx-auto mb-8" style={{ fontSize: '1.05rem' }}>
+                <p className="text-secondary mx-auto" style={{ fontSize: '1.05rem', maxWidth: '540px', marginBottom: '2rem', color: 'rgba(255,255,255,0.45)' }}>
                     {t('explore_subtitle')}
                 </p>
 
-                {/* Search bar */}
-                <div className="relative mx-auto" style={{ maxWidth: '520px' }}>
-                    <Search size={18} className="absolute text-secondary" style={{ left: '1rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-                    <input
-                        type="text"
-                        className="input"
-                        style={{ paddingLeft: '2.75rem', paddingRight: '1rem', borderRadius: '2rem', width: '100%', fontSize: '1rem', height: '3rem' }}
-                        placeholder={t('explore_search')}
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
-                    {search && (
-                        <button
-                            onClick={() => setSearch('')}
-                            style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontSize: '1.1rem', color: 'inherit' }}
-                        >
-                            ✕
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Join by code */}
-            <div className="mx-auto mb-2" style={{ maxWidth: '520px', padding: '0 1.5rem 2rem' }}>
-                <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '1.1rem 1.25rem' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                        <LinkIcon size={14} style={{ color: 'var(--color-primary)', opacity: 0.8 }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, opacity: 0.65 }}>Rejoindre par code d'invitation</span>
-                    </div>
-                    <div className="flex gap-2">
+                {/* Search + join row */}
+                <div style={{ display: 'flex', gap: '0.75rem', maxWidth: '680px', margin: '0 auto', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
                         <input
                             type="text"
-                            value={codeInput}
-                            onChange={e => setCodeInput(e.target.value.toUpperCase())}
-                            onKeyDown={e => e.key === 'Enter' && codeInput.trim() && router.push(`/join/${codeInput.trim()}`)}
-                            placeholder="Ex: AB12CD34"
-                            maxLength={12}
-                            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '0.5rem 0.9rem', color: 'inherit', outline: 'none', fontSize: '0.9rem', fontFamily: 'monospace', letterSpacing: '0.08em' }}
+                            className="input"
+                            style={{ paddingLeft: '2.6rem', paddingRight: search ? '2.5rem' : '1rem', borderRadius: '14px', width: '100%', fontSize: '0.95rem', height: '46px', boxSizing: 'border-box' }}
+                            placeholder={t('explore_search')}
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
                         />
+                        {search && (
+                            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.45, color: 'inherit', lineHeight: 1 }}>✕</button>
+                        )}
+                    </div>
+                    {/* Join by code — inline */}
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <div style={{ position: 'relative' }}>
+                            <LinkIcon size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
+                            <input
+                                type="text"
+                                value={codeInput}
+                                onChange={e => setCodeInput(e.target.value.toUpperCase())}
+                                onKeyDown={e => e.key === 'Enter' && codeInput.trim() && router.push(`/join/${codeInput.trim()}`)}
+                                placeholder="Code invite"
+                                maxLength={12}
+                                style={{ width: '130px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '0 0.75rem 0 2rem', color: 'inherit', outline: 'none', fontSize: '0.82rem', fontFamily: 'monospace', letterSpacing: '0.08em', height: '46px', boxSizing: 'border-box' }}
+                            />
+                        </div>
                         <button
                             onClick={() => codeInput.trim() && router.push(`/join/${codeInput.trim()}`)}
                             disabled={!codeInput.trim()}
-                            style={{ padding: '0.5rem 1.1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 600, background: 'var(--color-primary)', color: '#fff', border: 'none', cursor: !codeInput.trim() ? 'not-allowed' : 'pointer', opacity: !codeInput.trim() ? 0.5 : 1, flexShrink: 0 }}
+                            style={{ padding: '0 1rem', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 700, background: codeInput.trim() ? 'rgba(99,102,241,0.9)' : 'rgba(99,102,241,0.25)', color: '#fff', border: 'none', cursor: !codeInput.trim() ? 'not-allowed' : 'pointer', height: '46px', transition: 'all 0.2s', flexShrink: 0 }}
                         >
                             Rejoindre
                         </button>
@@ -269,24 +254,18 @@ export default function Explore() {
                 </div>
             </div>
 
-            <div className="container" style={{ maxWidth: '1100px', padding: '2.5rem 1.5rem' }}>
+            <div className="container" style={{ maxWidth: '1100px', padding: '0 1.5rem 3rem' }}>
 
-                {/* TABS */}
-                <div className="flex gap-6 mb-8 border-b border-white/10 pb-0">
-                    <button
-                        onClick={() => { setExploreTab('objectives'); setActiveCategory('tous'); setSearch(''); }}
-                        className={`pb-3 px-2 text-lg font-bold transition-all relative ${exploreTab === 'objectives' ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        Objectifs
-                        {exploreTab === 'objectives' && <div className="absolute bottom-[-1px] left-0 w-full h-[3px] bg-indigo-500 rounded-t-md" />}
-                    </button>
-                    <button
-                        onClick={() => { setExploreTab('projects'); setActiveCategory('tous'); setSearch(''); }}
-                        className={`pb-3 px-2 text-lg font-bold transition-all relative ${exploreTab === 'projects' ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                        Projets Collaboratifs
-                        {exploreTab === 'projects' && <div className="absolute bottom-[-1px] left-0 w-full h-[3px] bg-emerald-500 rounded-t-md" />}
-                    </button>
+                {/* TABS — segmented control */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '3px', gap: '2px' }}>
+                        <button onClick={() => { setExploreTab('objectives'); setActiveCategory('tous'); setSearch(''); }} style={{ padding: '8px 20px', borderRadius: '9px', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', border: exploreTab === 'objectives' ? '1px solid rgba(99,102,241,0.35)' : '1px solid transparent', background: exploreTab === 'objectives' ? 'rgba(99,102,241,0.15)' : 'transparent', color: exploreTab === 'objectives' ? '#818cf8' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>
+                            Objectifs {exploreTab === 'objectives' && <span style={{ marginLeft: '5px', fontSize: '0.72rem', background: 'rgba(99,102,241,0.2)', color: '#818cf8', borderRadius: '20px', padding: '1px 7px' }}>{publicObjectives.length}</span>}
+                        </button>
+                        <button onClick={() => { setExploreTab('projects'); setActiveCategory('tous'); setSearch(''); }} style={{ padding: '8px 20px', borderRadius: '9px', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', border: exploreTab === 'projects' ? '1px solid rgba(16,185,129,0.35)' : '1px solid transparent', background: exploreTab === 'projects' ? 'rgba(16,185,129,0.12)' : 'transparent', color: exploreTab === 'projects' ? '#34d399' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>
+                            Projets {exploreTab === 'projects' && <span style={{ marginLeft: '5px', fontSize: '0.72rem', background: 'rgba(16,185,129,0.15)', color: '#34d399', borderRadius: '20px', padding: '1px 7px' }}>{publicProjects.length}</span>}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Category pill filters */}

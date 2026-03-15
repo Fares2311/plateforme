@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { Plus, CheckCircle, Clock, Save, Trash2, Calendar as CalendarIcon, LayoutDashboard, List as ListIcon, Tag, AlertCircle, Search, Filter, AlignJustify, MessageSquare, X, Send, Link2 } from 'lucide-react';
+import { Plus, CheckCircle, Clock, Save, Trash2, Calendar as CalendarIcon, LayoutDashboard, List as ListIcon, Tag, AlertCircle, Search, Filter, AlignJustify, MessageSquare, X, Send, Link2, Zap, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CalendarPicker from '@/components/CalendarPicker';
 
@@ -46,7 +46,7 @@ const PRIORITIES: { id: TaskPriority; label: string; color: string }[] = [
     { id: 'high', label: 'Haute', color: '#ef4444' }
 ];
 
-export default function ProjectBoard({ projectId, user, projectMembers, currentUserRole = 'member', onActivity }: { projectId: string; user: any; projectMembers: any[]; currentUserRole?: 'admin' | 'member'; onActivity?: (type: string, payload: string) => void }) {
+export default function ProjectBoard({ projectId, user, projectMembers, currentUserRole = 'member', onActivity, sessions = [], projectTitle = 'Projet' }: { projectId: string; user: any; projectMembers: any[]; currentUserRole?: 'admin' | 'member'; onActivity?: (type: string, payload: string) => void; sessions?: any[]; projectTitle?: string }) {
     const [tasks, setTasks] = useState<ProjectTask[]>([]);
     const [currentView, setCurrentView] = useState<BoardView>('kanban');
 
@@ -69,6 +69,11 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
     const [formBlockedBy, setFormBlockedBy] = useState<string[]>([]);
     const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
     const [newComment, setNewComment] = useState('');
+
+    // Conflict detector
+    const [showConflictPanel, setShowConflictPanel] = useState(false);
+    const [conflictLoading, setConflictLoading] = useState(false);
+    const [conflictResult, setConflictResult] = useState<any>(null);
 
     useEffect(() => {
         if (!projectId) return;
@@ -150,6 +155,36 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
             setFormBlockedBy([]);
         }
         setShowTaskForm(true);
+    };
+
+    const detectConflicts = async () => {
+        setConflictLoading(true);
+        setShowConflictPanel(true);
+        setConflictResult(null);
+        try {
+            const res = await fetch('/api/detect-conflicts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projectTitle,
+                    members: projectMembers.filter(m => m?.user_id),
+                    tasks: tasks.map(t => ({
+                        ...t,
+                        deadline: t.deadline?.toDate ? t.deadline.toDate().toISOString() : t.deadline,
+                    })),
+                    sessions: sessions.map(s => ({
+                        ...s,
+                        scheduled_at: s.scheduled_at?.toDate ? s.scheduled_at.toDate().toISOString() : s.scheduled_at,
+                    })),
+                }),
+            });
+            const data = await res.json();
+            setConflictResult(data);
+        } catch {
+            setConflictResult({ error: true });
+        } finally {
+            setConflictLoading(false);
+        }
     };
 
     const handleSaveTask = async (e: React.FormEvent) => {
@@ -240,87 +275,241 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
     return (
         <div className="fade-enter h-full flex flex-col relative w-full" style={{ gap: 'var(--space-6)' }}>
             {/* Header Controls */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxWidth: '900px', margin: '0 auto', width: '100%', padding: '0 1.5rem' }}>
-                {/* Top Row: Title & Actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-                    <div>
-                        <h4 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
-                            <LayoutDashboard style={{ color: 'var(--color-primary)' }} size={24} /> 
-                            Suivi des Tâches
-                        </h4>
-                        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', margin: '0.25rem 0 0 0' }}>Gérez vos tâches collaboratives avec fluidité.</p>
+            <div style={{ padding: '0 1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+
+                    {/* Title */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '4px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15))', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <LayoutDashboard size={18} color="#818cf8" />
+                        </div>
+                        <div>
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>Suivi des Tâches</h4>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>
+                                {filteredTasks.length} tâche{filteredTasks.length !== 1 ? 's' : ''} · {tasks.filter(t => t.status === 'done').length} terminée{tasks.filter(t => t.status === 'done').length !== 1 ? 's' : ''}
+                            </p>
+                        </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                        {/* Search Input */}
-                        <div style={{ position: 'relative' }}>
-                            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} size={16} />
-                            <input 
-                                type="text" 
-                                placeholder="Rechercher..." 
-                                className="input"
-                                style={{ paddingLeft: '2.5rem', minWidth: '220px', borderRadius: 'var(--radius-full)' }}
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
+                    {/* Divider */}
+                    <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
 
-                        {/* Assignee Filter */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--color-bg-surface)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-full)', border: '1px solid var(--color-border)' }}>
-                            <Filter style={{ color: 'var(--color-text-tertiary)' }} size={16} />
-                            <select 
-                                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-primary)', outline: 'none', cursor: canEditForm ? 'pointer' : 'default', padding: '0.25rem' }}
-                                value={filterAssignee}
-                                onChange={(e) => setFilterAssignee(e.target.value)}
-                            >
-                                <option value="all" style={{ background: 'var(--color-bg-surface-elevated)' }}>Toutes les tâches</option>
-                                <option value="me" style={{ background: 'var(--color-bg-surface-elevated)' }}>Mes tâches</option>
-                                <option value="unassigned" style={{ background: 'var(--color-bg-surface-elevated)' }}>Non assignées</option>
-                                {projectMembers.filter(m => m !== null && user && m.user_id !== user.uid).map(m => (
-                                    <option key={m.user_id} value={m.user_id} style={{ background: 'var(--color-bg-surface-elevated)' }}>{m.full_name}</option>
-                                ))}
-                            </select>
-                        </div>
+                    {/* Search */}
+                    <div style={{ position: 'relative', flex: '1', minWidth: '160px', maxWidth: '240px' }}>
+                        <Search style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', pointerEvents: 'none' }} size={14} />
+                        <input
+                            type="text"
+                            placeholder="Rechercher…"
+                            style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '32px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', fontSize: '0.82rem', color: 'var(--color-text-primary)', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'}
+                            onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                        />
+                    </div>
 
-                        {/* View Toggles */}
-                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-bg-surface)', padding: '0.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-                            <button
-                                onClick={() => setCurrentView('kanban')}
-                                style={{ padding: '0.5rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s', border: 'none', cursor: canEditForm ? 'pointer' : 'default', background: currentView === 'kanban' ? 'var(--color-primary)' : 'transparent', color: currentView === 'kanban' ? '#fff' : 'var(--color-text-tertiary)' }}
-                                title="Tableau Kanban"
-                            ><LayoutDashboard size={18} /></button>
-                            <button
-                                onClick={() => setCurrentView('list')}
-                                style={{ padding: '0.5rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s', border: 'none', cursor: canEditForm ? 'pointer' : 'default', background: currentView === 'list' ? 'var(--color-primary)' : 'transparent', color: currentView === 'list' ? '#fff' : 'var(--color-text-tertiary)' }}
-                                title="Vue Liste"
-                            ><ListIcon size={18} /></button>
-                            <button
-                                onClick={() => setCurrentView('calendar')}
-                                style={{ padding: '0.5rem', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s', border: 'none', cursor: canEditForm ? 'pointer' : 'default', background: currentView === 'calendar' ? 'var(--color-primary)' : 'transparent', color: currentView === 'calendar' ? '#fff' : 'var(--color-text-tertiary)' }}
-                                title="Vue Calendrier"
-                            ><CalendarIcon size={18} /></button>
-                        </div>
-
-                        <button 
-                            onClick={() => openTaskForm()} 
-                            className="btn btn-primary"
-                            style={{ borderRadius: 'var(--radius-full)', padding: 'var(--space-2) var(--space-4)' }}
+                    {/* Assignee Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.04)', padding: '7px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <Filter size={13} color="var(--color-text-tertiary)" />
+                        <select
+                            style={{ background: 'transparent', border: 'none', color: 'var(--color-text-primary)', outline: 'none', cursor: 'pointer', fontSize: '0.82rem', fontFamily: 'inherit' }}
+                            value={filterAssignee}
+                            onChange={(e) => setFilterAssignee(e.target.value)}
                         >
-                            <Plus size={18} /> Nouvelle tâche
-                        </button>
+                            <option value="all" style={{ background: 'var(--color-bg-surface-elevated)' }}>Tous</option>
+                            <option value="me" style={{ background: 'var(--color-bg-surface-elevated)' }}>Moi</option>
+                            <option value="unassigned" style={{ background: 'var(--color-bg-surface-elevated)' }}>Non assignées</option>
+                            {projectMembers.filter(m => m !== null && user && m.user_id !== user.uid).map(m => (
+                                <option key={m.user_id} value={m.user_id} style={{ background: 'var(--color-bg-surface-elevated)' }}>{m.full_name}</option>
+                            ))}
+                        </select>
                     </div>
+
+                    {/* View Toggles */}
+                    <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', gap: '2px' }}>
+                        {([
+                            { view: 'kanban', Icon: LayoutDashboard, title: 'Kanban' },
+                            { view: 'list', Icon: ListIcon, title: 'Liste' },
+                            { view: 'calendar', Icon: CalendarIcon, title: 'Calendrier' },
+                        ] as const).map(({ view, Icon, title }) => (
+                            <button key={view} onClick={() => setCurrentView(view)} title={title}
+                                style={{ padding: '6px 8px', borderRadius: '7px', border: 'none', cursor: 'pointer', transition: 'all 0.15s', background: currentView === view ? 'var(--color-primary)' : 'transparent', color: currentView === view ? '#fff' : 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center' }}
+                            ><Icon size={16} /></button>
+                        ))}
+                    </div>
+
+                    {/* Spacer */}
+                    <div style={{ flex: 1 }} />
+
+                    {/* Conflict detector */}
+                    <button
+                        onClick={detectConflicts}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '10px', border: `1px solid ${showConflictPanel ? 'rgba(168,85,247,0.6)' : 'rgba(168,85,247,0.3)'}`, background: showConflictPanel ? 'rgba(168,85,247,0.18)' : 'rgba(168,85,247,0.07)', color: '#c084fc', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s', fontFamily: 'inherit' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.18)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = showConflictPanel ? 'rgba(168,85,247,0.18)' : 'rgba(168,85,247,0.07)')}
+                    >
+                        <Zap size={14} /> Conflits d'agenda
+                    </button>
+
+                    {/* New task */}
+                    <button
+                        onClick={() => openTaskForm()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, transition: 'all 0.15s', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(99,102,241,0.35)', flexShrink: 0 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 20px rgba(99,102,241,0.5)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)'; }}
+                    >
+                        <Plus size={16} /> Nouvelle tâche
+                    </button>
                 </div>
             </div>
 
+            {/* Conflict Panel */}
+            <AnimatePresence>
+                {showConflictPanel && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                        style={{ overflow: 'hidden', borderBottom: '1px solid rgba(168,85,247,0.2)', background: 'linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(99,102,241,0.04) 100%)' }}
+                    >
+                        <div style={{ padding: '20px 24px' }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Zap size={16} color="#c084fc" />
+                                    </div>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#e9d5ff' }}>Détecteur de conflits d'agenda</p>
+                                        <p style={{ margin: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}>Analyse IA de la charge de chaque membre</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowConflictPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', padding: '4px' }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            {/* Loading */}
+                            {conflictLoading && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '12px', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                                        <Zap size={18} color="#c084fc" />
+                                    </motion.div>
+                                    <span style={{ fontSize: '0.85rem', color: '#c084fc' }}>Analyse en cours…</span>
+                                </div>
+                            )}
+
+                            {/* Error */}
+                            {conflictResult?.error && (
+                                <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>Erreur lors de l'analyse. Réessaie.</p>
+                            )}
+
+                            {/* Results */}
+                            {conflictResult && !conflictResult.error && !conflictLoading && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {/* Summary */}
+                                    {conflictResult.summary && (
+                                        <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                            <p style={{ margin: 0, fontSize: '0.85rem', color: '#a5b4fc', lineHeight: 1.55 }}>{conflictResult.summary}</p>
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                                        {/* Overloaded */}
+                                        {conflictResult.overloaded?.length > 0 && (
+                                            <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                                <p style={{ margin: '0 0 10px', fontSize: '0.72rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    🔴 Surchargés
+                                                </p>
+                                                {conflictResult.overloaded.map((o: any, i: number) => (
+                                                    <div key={i} style={{ marginBottom: '6px' }}>
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fca5a5' }}>{o.member}</span>
+                                                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>{o.reason}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Conflicts */}
+                                        {conflictResult.conflicts?.length > 0 && (
+                                            <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                                <p style={{ margin: '0 0 10px', fontSize: '0.72rem', fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                                    ⚠️ Conflits de dates
+                                                </p>
+                                                {conflictResult.conflicts.map((c: any, i: number) => (
+                                                    <div key={i} style={{ marginBottom: '6px' }}>
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fde68a' }}>{c.member}</span>
+                                                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>{c.conflict}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Underloaded */}
+                                        {conflictResult.underloaded?.length > 0 && (
+                                            <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                                <p style={{ margin: '0 0 10px', fontSize: '0.72rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                                    🟢 Disponibles
+                                                </p>
+                                                {conflictResult.underloaded.map((u: any, i: number) => (
+                                                    <div key={i} style={{ marginBottom: '6px' }}>
+                                                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#6ee7b7' }}>{u.member}</span>
+                                                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>{u.capacity}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Suggestions */}
+                                    {conflictResult.suggestions?.length > 0 && (
+                                        <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.2)' }}>
+                                            <p style={{ margin: '0 0 12px', fontSize: '0.72rem', fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                                💡 Propositions de redistribution
+                                            </p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {conflictResult.suggestions.map((s: any, i: number) => (
+                                                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '9px', background: 'rgba(255,255,255,0.03)' }}>
+                                                        <ArrowRight size={14} color="#c084fc" style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                        <div style={{ flex: 1 }}>
+                                                            <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)' }}>{s.action}</span>
+                                                            {s.from && s.to && (
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                                                    <span style={{ fontSize: '0.72rem', color: '#fca5a5', fontWeight: 600 }}>{s.from}</span>
+                                                                    <ArrowRight size={11} color="rgba(255,255,255,0.3)" />
+                                                                    <span style={{ fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 600 }}>{s.to}</span>
+                                                                    {s.task && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)' }}>· {s.task}</span>}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* No issues */}
+                                    {conflictResult.overloaded?.length === 0 && conflictResult.conflicts?.length === 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', borderRadius: '12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                            <CheckCircle size={18} color="#10b981" />
+                                            <span style={{ fontSize: '0.85rem', color: '#34d399' }}>Aucun conflit détecté — la charge est bien répartie !</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Main View Area */}
-            <div style={{ flex: 1, overflow: currentView === 'kanban' ? 'visible' : 'hidden', position: 'relative', minHeight: '500px' }}>
+            <div style={{ flex: 1, overflow: currentView === 'kanban' ? 'visible' : 'hidden', position: 'relative' }}>
                 <AnimatePresence mode="wait">
                     {/* --- KANBAN VIEW --- */}
                     {currentView === 'kanban' && (
                         <motion.div
                             key="kanban"
                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                            style={{ display: 'grid', gridTemplateColumns: `repeat(${STATUSES.length}, 1fr)`, gap: 'var(--space-4)', paddingBottom: 'var(--space-2)', paddingLeft: '1.5rem', paddingRight: '1.5rem', height: '100%', alignItems: 'flex-start', width: '100vw', marginLeft: 'calc(50% - 50vw)' }}
+                            style={{ display: 'grid', gridTemplateColumns: `repeat(${STATUSES.length}, minmax(260px, 1fr))`, gap: 'var(--space-4)', paddingBottom: 'var(--space-2)', paddingLeft: '1.5rem', paddingRight: '1.5rem', alignItems: 'flex-start', width: 'calc(100vw - 216px)', marginLeft: '-12px' }}
                         >
                             {STATUSES.map(col => {
                                 const colTasks = filteredTasks.filter(t => t.status === col.id);
@@ -328,7 +517,7 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
                                 return (
                                     <div 
                                         key={col.id} 
-                                        style={{ minWidth: 0, background: 'var(--color-bg-surface)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}
+                                        style={{ minWidth: 0, background: 'var(--color-bg-surface)', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column' }}
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, col.id)}
                                     >
@@ -344,7 +533,7 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
                                             </span>
                                         </div>
                                         
-                                        <div style={{ padding: 'var(--space-3)', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                                        <div style={{ padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                                             <AnimatePresence>
                                                 {colTasks.map(task => {
                                                     const pColor = PRIORITIES.find(p => p.id === task.priority)?.color || '#f59e0b';
@@ -592,230 +781,311 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
                 {showTaskForm && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+                        transition={{ duration: 0.18 }}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(4,4,12,0.88)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0' }}
                         onClick={(e) => { if (e.target === e.currentTarget) setShowTaskForm(false); }}
                     >
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.96, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 10 }}
-                            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            initial={{ opacity: 0, scale: 0.95, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }}
+                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                             style={{
-                                width: '100%', maxWidth: 'min(1200px, calc(100vw - 48px))', maxHeight: '92vh',
-                                background: 'linear-gradient(145deg, rgba(18,18,32,0.98) 0%, rgba(12,12,24,0.99) 100%)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                width: 'calc(100vw - 32px)', maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)',
+                                background: 'rgba(13,13,26,0.97)',
+                                border: '1px solid rgba(255,255,255,0.1)',
                                 borderRadius: '20px',
                                 overflow: 'hidden',
-                                boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)',
+                                boxShadow: '0 0 0 1px rgba(99,102,241,0.2), inset 0 1px 0 rgba(255,255,255,0.08)',
                                 display: 'flex', flexDirection: 'column',
                             }}
                         >
                             {/* Header */}
                             <div style={{
-                                background: 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(168,85,247,0.12) 50%, rgba(59,130,246,0.08) 100%)',
-                                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                                padding: '28px 32px 24px',
-                                borderRadius: '20px 20px 0 0',
-                                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px',
+                                position: 'relative',
+                                background: 'linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(139,92,246,0.16) 40%, rgba(59,130,246,0.1) 100%)',
+                                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                                padding: '24px 28px 22px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
                                 flexShrink: 0,
+                                overflow: 'hidden',
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
+                                {/* Decorative glow blob */}
+                                <div style={{ position: 'absolute', top: '-30px', left: '-20px', width: '160px', height: '100px', background: editingTask ? 'radial-gradient(ellipse, rgba(99,102,241,0.25) 0%, transparent 70%)' : 'radial-gradient(ellipse, rgba(16,185,129,0.22) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
                                     <div style={{
-                                        width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
-                                        background: editingTask ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #10b981, #059669)',
+                                        width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
+                                        background: editingTask ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        boxShadow: editingTask ? '0 4px 16px rgba(99,102,241,0.4)' : '0 4px 16px rgba(16,185,129,0.4)',
+                                        boxShadow: editingTask ? '0 6px 20px rgba(99,102,241,0.45)' : '0 6px 20px rgba(16,185,129,0.45)',
                                     }}>
-                                        {editingTask ? <Save size={20} color="#fff" /> : <Plus size={20} color="#fff" />}
+                                        {editingTask ? <Save size={20} color="#fff" /> : <Plus size={22} color="#fff" />}
                                     </div>
-                                    <div>
-                                        <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '3px' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontSize: '0.68rem', fontWeight: 700, color: editingTask ? 'rgba(165,180,252,0.7)' : 'rgba(52,211,153,0.7)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
                                             {editingTask ? 'Modifier la tâche' : 'Créer une tâche'}
                                         </p>
-                                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+                                        <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#fff', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '600px' }}>
                                             {formText || (editingTask ? 'Tâche sans titre' : 'Nouvelle tâche')}
                                         </h2>
                                     </div>
+                                    {/* Status badge in header */}
+                                    {(() => { const s = STATUSES.find(x => x.id === formStatus); return s ? (
+                                        <div style={{ marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: `${s.color}22`, border: `1px solid ${s.color}55`, flexShrink: 0 }}>
+                                            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.color }} />
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: s.color }}>{s.label}</span>
+                                        </div>
+                                    ) : null; })()}
                                 </div>
                                 <button
                                     type="button" onClick={() => setShowTaskForm(false)}
-                                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', flexShrink: 0, transition: 'all 0.2s' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)'; }}
+                                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)', flexShrink: 0, transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.13)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.5)'; }}
                                 >
-                                    <X size={16} />
+                                    <X size={15} />
                                 </button>
                             </div>
 
                             {/* Body */}
                             <form onSubmit={handleSaveTask} style={{ overflowY: 'auto', flex: 1 }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 0 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px' }}>
 
                                     {/* Left column */}
-                                    <div style={{ padding: '28px 32px', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div style={{ padding: '28px 32px 24px', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
                                         {/* Title */}
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Titre</label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '9px' }}>
+                                                <span style={{ width: '3px', height: '12px', borderRadius: '2px', background: '#6366f1', display: 'inline-block' }} />
+                                                Titre
+                                            </label>
                                             <input
                                                 type="text" value={formText} onChange={e => setFormText(e.target.value)} required
                                                 placeholder="Ex: Développer la page d'accueil"
                                                 disabled={!canEditForm}
                                                 style={{
-                                                    width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                                                    borderRadius: '12px', padding: '12px 16px', fontSize: '1rem', fontWeight: 600,
-                                                    color: '#fff', outline: 'none', transition: 'border-color 0.2s',
+                                                    width: '100%', boxSizing: 'border-box',
+                                                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
+                                                    borderRadius: '12px', padding: '13px 16px', fontSize: '1rem', fontWeight: 600,
+                                                    color: '#fff', outline: 'none', transition: 'border-color 0.2s, background 0.2s',
                                                     fontFamily: 'inherit',
                                                 }}
-                                                onFocus={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'}
-                                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                                                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.55)'; e.currentTarget.style.background = 'rgba(99,102,241,0.05)'; }}
+                                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                                             />
                                         </div>
 
                                         {/* Description */}
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Description</label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '9px' }}>
+                                                <span style={{ width: '3px', height: '12px', borderRadius: '2px', background: '#3b82f6', display: 'inline-block' }} />
+                                                Description
+                                            </label>
                                             <textarea
                                                 value={formDesc} onChange={e => setFormDesc(e.target.value)}
                                                 rows={4} placeholder="Détails, contexte, liens utiles..."
                                                 disabled={!canEditForm}
                                                 style={{
-                                                    width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                                                    borderRadius: '12px', padding: '12px 16px', fontSize: '0.875rem',
-                                                    color: '#fff', outline: 'none', resize: 'vertical', transition: 'border-color 0.2s',
-                                                    fontFamily: 'inherit', lineHeight: 1.6, minHeight: '100px',
+                                                    width: '100%', boxSizing: 'border-box',
+                                                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
+                                                    borderRadius: '12px', padding: '13px 16px', fontSize: '0.875rem',
+                                                    outline: 'none', resize: 'vertical', transition: 'border-color 0.2s, background 0.2s',
+                                                    fontFamily: 'inherit', lineHeight: 1.65, minHeight: '110px', color: 'rgba(255,255,255,0.85)',
                                                 }}
-                                                onFocus={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'}
-                                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                                                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'; e.currentTarget.style.background = 'rgba(59,130,246,0.04)'; }}
+                                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                                             />
                                         </div>
 
-                                        {/* Status + Priority */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Statut</label>
-                                                <select
-                                                    value={formStatus} onChange={e => setFormStatus(e.target.value as TaskStatus)} disabled={!canEditForm}
-                                                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px 14px', fontSize: '0.875rem', color: '#fff', outline: 'none', fontFamily: 'inherit', cursor: canEditForm ? 'pointer' : 'not-allowed' }}
-                                                >
-                                                    {STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                                                </select>
+                                        {/* Status — pill selectors */}
+                                        <div>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>
+                                                <span style={{ width: '3px', height: '12px', borderRadius: '2px', background: STATUSES.find(s => s.id === formStatus)?.color || '#64748b', display: 'inline-block', transition: 'background 0.2s' }} />
+                                                Statut
+                                            </label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                                {STATUSES.map(s => {
+                                                    const active = formStatus === s.id;
+                                                    return (
+                                                        <button key={s.id} type="button" disabled={!canEditForm} onClick={() => canEditForm && setFormStatus(s.id)}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                                padding: '9px 10px', borderRadius: '10px', cursor: canEditForm ? 'pointer' : 'not-allowed',
+                                                                border: `1px solid ${active ? s.color + '88' : 'rgba(255,255,255,0.07)'}`,
+                                                                background: active ? `${s.color}1a` : 'rgba(255,255,255,0.03)',
+                                                                transition: 'all 0.15s', fontFamily: 'inherit',
+                                                            }}>
+                                                            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.color, flexShrink: 0, boxShadow: active ? `0 0 6px ${s.color}` : 'none' }} />
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: active ? 700 : 500, color: active ? s.color : 'rgba(255,255,255,0.45)', whiteSpace: 'nowrap' }}>{s.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Priorité</label>
-                                                <select
-                                                    value={formPriority} onChange={e => setFormPriority(e.target.value as TaskPriority)} disabled={!canEditForm}
-                                                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '10px 14px', fontSize: '0.875rem', color: '#fff', outline: 'none', fontFamily: 'inherit', cursor: canEditForm ? 'pointer' : 'not-allowed' }}
-                                                >
-                                                    {PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                                                </select>
+                                        </div>
+
+                                        {/* Priority — pill selectors */}
+                                        <div>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>
+                                                <span style={{ width: '3px', height: '12px', borderRadius: '2px', background: PRIORITIES.find(p => p.id === formPriority)?.color || '#f59e0b', display: 'inline-block', transition: 'background 0.2s' }} />
+                                                Priorité
+                                            </label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                                {PRIORITIES.map(p => {
+                                                    const active = formPriority === p.id;
+                                                    const icons: Record<string, string> = { low: '↓', medium: '→', high: '↑' };
+                                                    return (
+                                                        <button key={p.id} type="button" disabled={!canEditForm} onClick={() => canEditForm && setFormPriority(p.id)}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                                                                padding: '9px 12px', borderRadius: '10px', cursor: canEditForm ? 'pointer' : 'not-allowed',
+                                                                border: `1px solid ${active ? p.color + '88' : 'rgba(255,255,255,0.07)'}`,
+                                                                background: active ? `${p.color}1a` : 'rgba(255,255,255,0.03)',
+                                                                transition: 'all 0.15s', fontFamily: 'inherit',
+                                                            }}>
+                                                            <span style={{ fontSize: '0.9rem', color: active ? p.color : 'rgba(255,255,255,0.3)', fontWeight: 700, lineHeight: 1 }}>{icons[p.id]}</span>
+                                                            <span style={{ fontSize: '0.78rem', fontWeight: active ? 700 : 500, color: active ? p.color : 'rgba(255,255,255,0.45)' }}>{p.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 
                                         {/* Deadline */}
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Échéance</label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '9px' }}>
+                                                <span style={{ width: '3px', height: '12px', borderRadius: '2px', background: '#f59e0b', display: 'inline-block' }} />
+                                                Échéance
+                                            </label>
                                             <div style={{ pointerEvents: canEditForm ? 'auto' : 'none', opacity: canEditForm ? 1 : 0.5 }}>
                                                 <CalendarPicker value={formDeadline} onChange={setFormDeadline} placeholder="Sélectionner une date et heure" />
                                             </div>
                                         </div>
 
+
                                         {/* Actions */}
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                             {editingTask && canEditForm && (
                                                 <button type="button" onClick={() => handleDeleteTask(editingTask.id)}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#ef4444', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, marginRight: 'auto', transition: 'all 0.2s', fontFamily: 'inherit' }}>
-                                                    <Trash2 size={15} /> Supprimer
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.07)', color: '#f87171', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, marginRight: 'auto', transition: 'all 0.15s', fontFamily: 'inherit' }}
+                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.14)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.5)'; }}
+                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(239,68,68,0.25)'; }}
+                                                >
+                                                    <Trash2 size={14} /> Supprimer
                                                 </button>
                                             )}
                                             <button type="button" onClick={() => setShowTaskForm(false)}
-                                                style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, transition: 'all 0.2s', fontFamily: 'inherit' }}>
+                                                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500, transition: 'all 0.15s', fontFamily: 'inherit' }}
+                                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.55)'; }}
+                                            >
                                                 Annuler
                                             </button>
                                             {canEditForm && (
                                                 <button type="submit"
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 22px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 700, boxShadow: '0 4px 16px rgba(99,102,241,0.35)', transition: 'all 0.2s', fontFamily: 'inherit' }}>
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 22px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 700, boxShadow: '0 4px 18px rgba(99,102,241,0.4)', transition: 'all 0.15s', fontFamily: 'inherit' }}
+                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 24px rgba(99,102,241,0.55)'; (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 18px rgba(99,102,241,0.4)'; (e.currentTarget as HTMLButtonElement).style.transform = 'none'; }}
+                                                >
                                                     <Save size={15} /> Enregistrer
                                                 </button>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Right column */}
-                                    <div style={{ padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: '24px', background: 'rgba(255,255,255,0.015)' }}>
+                                    {/* Right column — sidebar */}
+                                    <div style={{ padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: '0', background: 'rgba(255,255,255,0.02)', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
 
                                         {/* Assignees */}
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Assigner à</label>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <div style={{ marginBottom: '24px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '7px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <span style={{ fontSize: '0.7rem' }}>👥</span>
+                                                </div>
+                                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Assigné à</span>
+                                                {formAssignees.length > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#a5b4fc', fontWeight: 700, background: 'rgba(99,102,241,0.18)', padding: '2px 8px', borderRadius: '20px' }}>{formAssignees.length}</span>}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                                 {projectMembers.map(m => {
                                                     if (!m || !m.user_id) return null;
                                                     const selected = formAssignees.includes(m.user_id);
                                                     return (
                                                         <label key={m.user_id} style={{
                                                             display: 'flex', alignItems: 'center', gap: '10px',
-                                                            padding: '8px 12px', borderRadius: '10px', cursor: canEditForm ? 'pointer' : 'default',
-                                                            background: selected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                                                            border: `1px solid ${selected ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
-                                                            transition: 'all 0.2s',
+                                                            padding: '8px 11px', borderRadius: '10px', cursor: canEditForm ? 'pointer' : 'default',
+                                                            background: selected ? 'rgba(99,102,241,0.14)' : 'transparent',
+                                                            border: `1px solid ${selected ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)'}`,
+                                                            transition: 'all 0.15s',
                                                             opacity: (!canEditForm && !selected) ? 0.4 : 1,
                                                             pointerEvents: !canEditForm ? 'none' : 'auto',
                                                         }}>
                                                             <input type="checkbox" checked={selected} onChange={e => { if (!canEditForm) return; if (e.target.checked) setFormAssignees([...formAssignees, m.user_id]); else setFormAssignees(formAssignees.filter(id => id !== m.user_id)); }} style={{ accentColor: '#6366f1', cursor: 'pointer', width: '14px', height: '14px', flexShrink: 0 }} disabled={!canEditForm} />
-                                                            <img src={m.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.full_name || 'U')}&background=random`} alt={m.full_name || 'U'} style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                                                            <span style={{ fontSize: '0.85rem', fontWeight: selected ? 600 : 400, color: selected ? '#fff' : 'rgba(255,255,255,0.55)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.full_name || 'Utilisateur'}</span>
-                                                            {selected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />}
+                                                            <img src={m.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.full_name || 'U')}&background=random`} alt={m.full_name || 'U'} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: selected ? '2px solid rgba(99,102,241,0.6)' : '2px solid transparent' }} />
+                                                            <span style={{ fontSize: '0.83rem', fontWeight: selected ? 600 : 400, color: selected ? '#e0e7ff' : 'rgba(255,255,255,0.5)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.full_name || 'Utilisateur'}</span>
+                                                            {selected && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#6366f1', boxShadow: '0 0 6px rgba(99,102,241,0.7)', flexShrink: 0 }} />}
                                                         </label>
                                                     );
                                                 })}
                                             </div>
-                                            {!canEditForm && <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', margin: '6px 0 0', fontStyle: 'italic' }}>Seul un Admin peut modifier l'assignation.</p>}
+                                            {!canEditForm && <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.28)', margin: '8px 0 0', fontStyle: 'italic' }}>Seul un Admin peut modifier l'assignation.</p>}
                                         </div>
 
+                                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 0 24px' }} />
+
                                         {/* Checklist */}
-                                        <div>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
-                                                <CheckCircle size={13} /> Sous-tâches
+                                        <div style={{ marginBottom: '24px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '7px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <CheckCircle size={12} color="#10b981" />
+                                                </div>
+                                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Sous-tâches</span>
                                                 {formChecklist.length > 0 && (
-                                                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: formChecklist.every(i => i.done) ? '#10b981' : 'rgba(255,255,255,0.4)', fontWeight: 700, letterSpacing: 0, textTransform: 'none' }}>
+                                                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700, color: formChecklist.every(i => i.done) ? '#10b981' : 'rgba(255,255,255,0.4)', background: formChecklist.every(i => i.done) ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '20px' }}>
                                                         {formChecklist.filter(i => i.done).length}/{formChecklist.length}
                                                     </span>
                                                 )}
-                                            </label>
+                                            </div>
                                             {formChecklist.length > 0 && (
-                                                <div style={{ marginBottom: '8px', height: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                                                    <div style={{ height: '100%', width: `${formChecklist.length > 0 ? (formChecklist.filter(i => i.done).length / formChecklist.length) * 100 : 0}%`, background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '4px', transition: 'width 0.3s' }} />
+                                                <div style={{ marginBottom: '10px', height: '5px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${(formChecklist.filter(i => i.done).length / formChecklist.length) * 100}%`, background: 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '5px', transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1)' }} />
                                                 </div>
                                             )}
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 {formChecklist.map(item => (
-                                                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+                                                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '9px', background: item.done ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${item.done ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'}`, transition: 'all 0.15s' }}>
                                                         <input type="checkbox" checked={item.done} onChange={() => setFormChecklist(prev => prev.map(i => i.id === item.id ? { ...i, done: !i.done } : i))} style={{ accentColor: '#10b981', cursor: 'pointer', width: '14px', height: '14px', flexShrink: 0 }} />
-                                                        <span style={{ flex: 1, fontSize: '0.82rem', textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)' }}>{item.text}</span>
-                                                        {canEditForm && <button type="button" onClick={() => setFormChecklist(prev => prev.filter(i => i.id !== item.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', padding: '2px', display: 'flex', flexShrink: 0 }}><X size={13} /></button>}
+                                                        <span style={{ flex: 1, fontSize: '0.8rem', textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)' }}>{item.text}</span>
+                                                        {canEditForm && <button type="button" onClick={() => setFormChecklist(prev => prev.filter(i => i.id !== item.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.22)', padding: '2px', display: 'flex', flexShrink: 0, transition: 'color 0.15s' }} onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'} onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.22)'}><X size={12} /></button>}
                                                     </div>
                                                 ))}
                                                 {canEditForm && (
-                                                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                                                        <input type="text" value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Nouvelle sous-tâche..." style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '7px 10px', fontSize: '0.8rem', color: '#fff', outline: 'none', fontFamily: 'inherit' }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newChecklistItem.trim()) { setFormChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]); setNewChecklistItem(''); }}}} />
-                                                        <button type="button" onClick={() => { if (newChecklistItem.trim()) { setFormChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]); setNewChecklistItem(''); }}} style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#10b981' }}><Plus size={14} /></button>
+                                                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                                                        <input type="text" value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Ajouter une sous-tâche..." style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '9px', padding: '8px 11px', fontSize: '0.79rem', color: '#fff', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }} onFocus={e => e.currentTarget.style.borderColor = 'rgba(16,185,129,0.4)'} onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (newChecklistItem.trim()) { setFormChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]); setNewChecklistItem(''); }}}} />
+                                                        <button type="button" onClick={() => { if (newChecklistItem.trim()) { setFormChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]); setNewChecklistItem(''); }}} style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '9px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#10b981', transition: 'all 0.15s' }}><Plus size={14} /></button>
                                                     </div>
                                                 )}
-                                                {formChecklist.length === 0 && !canEditForm && <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', margin: 0 }}>Aucune sous-tâche</p>}
+                                                {formChecklist.length === 0 && !canEditForm && <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.22)', fontStyle: 'italic', margin: '4px 0 0' }}>Aucune sous-tâche</p>}
                                             </div>
                                         </div>
 
+                                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 0 24px' }} />
+
                                         {/* Blocked by */}
                                         <div>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}><Link2 size={13} /> Bloqué par</label>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '7px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Link2 size={12} color="#f87171" />
+                                                </div>
+                                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bloqué par</span>
+                                                {formBlockedBy.length > 0 && <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#f87171', fontWeight: 700, background: 'rgba(239,68,68,0.12)', padding: '2px 8px', borderRadius: '20px' }}>{formBlockedBy.length}</span>}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 {tasks.filter(t => t.id !== editingTask?.id && t.status !== 'done').length === 0 ? (
-                                                    <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', margin: 0 }}>Aucune autre tâche active</p>
+                                                    <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.22)', fontStyle: 'italic', margin: 0 }}>Aucune autre tâche active</p>
                                                 ) : tasks.filter(t => t.id !== editingTask?.id && t.status !== 'done').map(t => {
                                                     const blocked = formBlockedBy.includes(t.id);
                                                     return (
-                                                        <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '8px', cursor: canEditForm ? 'pointer' : 'default', background: blocked ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)', border: `1px solid ${blocked ? 'rgba(239,68,68,0.35)' : 'transparent'}`, pointerEvents: !canEditForm ? 'none' : 'auto', transition: 'all 0.15s' }}>
+                                                        <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '9px', cursor: canEditForm ? 'pointer' : 'default', background: blocked ? 'rgba(239,68,68,0.09)' : 'rgba(255,255,255,0.03)', border: `1px solid ${blocked ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.05)'}`, pointerEvents: !canEditForm ? 'none' : 'auto', transition: 'all 0.15s' }}>
                                                             <input type="checkbox" checked={blocked} onChange={e => { if (e.target.checked) setFormBlockedBy(prev => [...prev, t.id]); else setFormBlockedBy(prev => prev.filter(id => id !== t.id)); }} disabled={!canEditForm} style={{ accentColor: '#ef4444', cursor: canEditForm ? 'pointer' : 'not-allowed', width: '13px', height: '13px', flexShrink: 0 }} />
-                                                            <span style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: blocked ? '#ef4444' : 'rgba(255,255,255,0.5)' }}>{t.text}</span>
+                                                            <span style={{ flex: 1, fontSize: '0.79rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: blocked ? '#fca5a5' : 'rgba(255,255,255,0.45)' }}>{t.text}</span>
                                                         </label>
                                                     );
                                                 })}
@@ -826,29 +1096,33 @@ export default function ProjectBoard({ projectId, user, projectMembers, currentU
 
                                 {/* Comments — full width at bottom, only when editing */}
                                 {editingTask && (
-                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '24px 32px' }}>
-                                        <p style={{ margin: '0 0 14px 0', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <MessageSquare size={13} /> Commentaires {taskComments.length > 0 && <span style={{ background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: '20px', padding: '1px 8px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 0, textTransform: 'none' }}>{taskComments.length}</span>}
-                                        </p>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto', marginBottom: '14px', paddingRight: '4px' }}>
+                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '22px 32px 26px', background: 'rgba(255,255,255,0.01)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                            <div style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <MessageSquare size={13} color="#a5b4fc" />
+                                            </div>
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Commentaires</span>
+                                            {taskComments.length > 0 && <span style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '20px', padding: '2px 9px', fontSize: '0.72rem', fontWeight: 700 }}>{taskComments.length}</span>}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '190px', overflowY: 'auto', marginBottom: '14px', paddingRight: '4px' }}>
                                             {taskComments.length === 0 ? (
-                                                <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.82rem', fontStyle: 'italic', margin: 0 }}>Aucun commentaire pour le moment.</p>
+                                                <p style={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.82rem', fontStyle: 'italic', margin: 0 }}>Aucun commentaire pour le moment.</p>
                                             ) : taskComments.map(c => (
                                                 <div key={c.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                                                    <img src={c.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user_name)}&background=random`} alt={c.user_name} style={{ width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} />
-                                                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '10px 14px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <img src={c.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.user_name)}&background=random`} alt={c.user_name} style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.08)' }} />
+                                                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: '12px 12px 12px 4px', padding: '10px 14px', border: '1px solid rgba(255,255,255,0.07)' }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
-                                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#a5b4fc' }}>{c.user_name}</span>
-                                                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>{c.created_at ? new Date(c.created_at.toMillis()).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'À l\'instant'}</span>
+                                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c4b5fd' }}>{c.user_name}</span>
+                                                            <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.28)' }}>{c.created_at ? new Date(c.created_at.toMillis()).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'À l\'instant'}</span>
                                                         </div>
-                                                        <p style={{ margin: 0, fontSize: '0.83rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.8)' }}>{c.content}</p>
+                                                        <p style={{ margin: 0, fontSize: '0.84rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.8)' }}>{c.content}</p>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                            <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Écrire un commentaire..." style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '12px', padding: '11px 16px', fontSize: '0.875rem', color: '#fff', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.2s' }} onFocus={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'} onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)'} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddComment(); }}} />
-                                            <button type="button" onClick={handleAddComment} disabled={!newComment.trim()} style={{ background: newComment.trim() ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '12px', width: '44px', height: '44px', cursor: newComment.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: newComment.trim() ? '#fff' : 'rgba(255,255,255,0.25)', flexShrink: 0, transition: 'all 0.2s', boxShadow: newComment.trim() ? '0 4px 14px rgba(99,102,241,0.35)' : 'none' }}><Send size={16} /></button>
+                                            <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Écrire un commentaire..." style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '12px', padding: '11px 16px', fontSize: '0.875rem', color: '#fff', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s, background 0.15s' }} onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'; e.currentTarget.style.background = 'rgba(99,102,241,0.04)'; }} onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddComment(); }}} />
+                                            <button type="button" onClick={handleAddComment} disabled={!newComment.trim()} style={{ background: newComment.trim() ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)', border: newComment.trim() ? 'none' : '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', width: '46px', height: '46px', cursor: newComment.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: newComment.trim() ? '#fff' : 'rgba(255,255,255,0.2)', flexShrink: 0, transition: 'all 0.2s', boxShadow: newComment.trim() ? '0 4px 14px rgba(99,102,241,0.4)' : 'none' }}><Send size={16} /></button>
                                         </div>
                                     </div>
                                 )}
