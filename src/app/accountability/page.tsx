@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Users, Target, Zap, CheckCircle, Clock, AlertCircle, X, ChevronRight, MapPin, Navigation2, RefreshCw } from 'lucide-react';
+import { Users, Target, Zap, CheckCircle, Clock, AlertCircle, X, ChevronRight, MapPin, Navigation2, RefreshCw, Plus } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 
 interface Partner {
@@ -365,573 +365,500 @@ export default function AccountabilityPage() {
     const pendingPartners = partners.filter(p => p.status === 'pending');
 
     return (
-        <div className="container fade-enter" style={{ maxWidth: '820px', padding: '2rem 1.5rem' }}>
-            {/* Header */}
-            <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
-                <div>
-                    <h2 className="flex items-center gap-3 m-0" style={{ fontSize: '1.8rem', fontWeight: 800, background: 'linear-gradient(to right, #fff, #a1a1aa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        <Target size={26} style={{ color: 'var(--color-primary)', WebkitTextFillColor: 'initial' }} />
-                        Accountability
-                    </h2>
-                    <p className="text-secondary m-0 mt-1 text-sm">Restez motivés ensemble — fixez un objectif hebdomadaire et encouragez-vous mutuellement.</p>
-                </div>
-                {friends.length > 0 && (
-                    <button
-                        className="btn btn-primary shadow-glow"
-                        onClick={() => setShowInviteForm(v => !v)}
-                    >
-                        {showInviteForm ? '✕ Annuler' : '+ Inviter un ami'}
-                    </button>
-                )}
-            </div>
+        <div style={{ paddingLeft: '228px', paddingRight: '3rem', paddingTop: '2rem', paddingBottom: '4rem', minHeight: '100vh' }}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
-            {/* Invite form */}
-            {showInviteForm && (
-                <div className="card card-glass mb-8 fade-enter" style={{ border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(10,10,20,0.6)', padding: 0, overflow: 'hidden' }}>
-                    {/* Form header */}
-                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(99,102,241,0.15)', background: 'rgba(99,102,241,0.06)' }}>
-                        <h4 className="m-0" style={{ fontWeight: 700, fontSize: '1rem' }}>
-                            Nouvelle invitation
-                        </h4>
-                        <p style={{ margin: '2px 0 0', fontSize: '0.8rem', opacity: 0.45 }}>
-                            {selectedFriend ? `→ ${selectedFriend.full_name || selectedFriend.email}` : 'Sélectionnez un ami pour commencer'}
+                @keyframes ac-fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes ac-pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); } }
+                @keyframes spin { to { transform: rotate(360deg); } }
+
+                .ac-wrap { font-family: 'DM Sans', system-ui; color: #e2e2ea; }
+                .ac-title { font-family: 'Outfit', system-ui; font-weight: 800; letter-spacing: -0.04em; }
+                .ac-label-upper { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.28); font-family: 'DM Sans', system-ui; }
+
+                /* ── partner card (grid item) ── */
+                .ac-card {
+                    border-radius: 14px;
+                    border: 1px solid rgba(255,255,255,0.07);
+                    background: rgba(14,14,20,0.9);
+                    padding: 16px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    animation: ac-fade-in 0.3s cubic-bezier(0.22,1,0.36,1) both;
+                    transition: border-color 0.2s, transform 0.18s, box-shadow 0.2s;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .ac-card:hover {
+                    border-color: rgba(217,119,6,0.3);
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+                }
+                .ac-card::after {
+                    content: '';
+                    position: absolute;
+                    top: 0; left: 0; right: 0;
+                    height: 2px;
+                    background: linear-gradient(90deg, #d97706, #f59e0b);
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                }
+                .ac-card:hover::after { opacity: 1; }
+
+                .ac-card-name { font-family: 'Outfit', system-ui; font-size: 0.88rem; font-weight: 700; color: #eeeef2; line-height: 1.2; }
+                .ac-card-sub { font-size: 0.71rem; color: rgba(255,255,255,0.32); font-family: 'DM Sans', system-ui; }
+
+                /* ── nearby card ── */
+                .ac-nearby-card {
+                    border-radius: 14px;
+                    border: 1px solid rgba(16,185,129,0.14);
+                    background: rgba(14,14,20,0.88);
+                    padding: 14px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    animation: ac-fade-in 0.3s cubic-bezier(0.22,1,0.36,1) both;
+                    transition: border-color 0.2s, transform 0.18s;
+                }
+                .ac-nearby-card:hover { border-color: rgba(16,185,129,0.3); transform: translateY(-2px); }
+
+                /* ── pending row (stays list since it needs accept/decline inline) ── */
+                .ac-pending-row {
+                    display: flex; align-items: center; gap: 12px;
+                    padding: 10px 14px;
+                    border-radius: 11px;
+                    border: 1px solid rgba(99,102,241,0.18);
+                    background: rgba(14,14,20,0.88);
+                    transition: border-color 0.2s;
+                    animation: ac-fade-in 0.3s cubic-bezier(0.22,1,0.36,1) both;
+                }
+                .ac-pending-row:hover { border-color: rgba(99,102,241,0.35); }
+
+                /* ── invite form panel ── */
+                .ac-invite-panel {
+                    border-radius: 16px; overflow: hidden;
+                    border: 1px solid rgba(217,119,6,0.25);
+                    background: rgba(12,12,18,0.98);
+                    animation: ac-fade-in 0.25s cubic-bezier(0.22,1,0.36,1);
+                }
+                .ac-invite-head {
+                    padding: 14px 18px;
+                    border-bottom: 1px solid rgba(255,255,255,0.06);
+                    background: rgba(217,119,6,0.04);
+                    display: flex; align-items: center; justify-content: space-between;
+                }
+                .ac-invite-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 13px; }
+
+                .ac-field-label { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); display: block; margin-bottom: 5px; font-family: 'DM Sans', system-ui; }
+
+                .ac-input {
+                    width: 100%; padding: 8px 11px;
+                    background: rgba(255,255,255,0.04);
+                    border: 1px solid rgba(255,255,255,0.08);
+                    border-radius: 9px; color: #f0f0f5;
+                    font-family: 'DM Sans', system-ui; font-size: 0.85rem;
+                    outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
+                }
+                .ac-input:focus { border-color: rgba(217,119,6,0.45); box-shadow: 0 0 0 3px rgba(217,119,6,0.08); }
+                .ac-input::placeholder { color: rgba(255,255,255,0.18); }
+
+                .ac-select {
+                    background: rgba(255,255,255,0.04);
+                    border: 1px solid rgba(255,255,255,0.08);
+                    border-radius: 9px; color: #f0f0f5;
+                    font-family: 'DM Sans', system-ui; font-size: 0.84rem;
+                    padding: 8px 11px; outline: none; cursor: pointer;
+                }
+                .ac-friend-btn {
+                    padding: 7px 11px; border-radius: 9px;
+                    border: 1px solid rgba(255,255,255,0.06);
+                    background: rgba(255,255,255,0.02); color: rgba(255,255,255,0.55);
+                    font-family: 'DM Sans', system-ui; font-size: 0.83rem; font-weight: 500;
+                    cursor: pointer; text-align: left; transition: all 0.16s;
+                    display: flex; align-items: center; gap: 9px;
+                }
+                .ac-friend-btn:hover { border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.04); color: #fbbf24; }
+                .ac-friend-btn.selected { border-color: rgba(217,119,6,0.5); background: rgba(217,119,6,0.08); color: #fbbf24; }
+
+                /* ── buttons ── */
+                .ac-btn-amber {
+                    padding: 8px 16px; border-radius: 9px; border: none;
+                    background: linear-gradient(135deg, #d97706, #f59e0b);
+                    color: #0a0a10; font-family: 'Outfit', system-ui;
+                    font-size: 0.8rem; font-weight: 700;
+                    cursor: pointer; transition: all 0.18s;
+                    box-shadow: 0 3px 10px rgba(217,119,6,0.28);
+                    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+                }
+                .ac-btn-amber:hover { box-shadow: 0 5px 18px rgba(217,119,6,0.45); transform: translateY(-1px); }
+                .ac-btn-amber:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+                .ac-btn-ghost {
+                    padding: 6px 11px; border-radius: 8px;
+                    border: 1px solid rgba(255,255,255,0.08);
+                    background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.42);
+                    font-family: 'DM Sans', system-ui; font-size: 0.78rem; font-weight: 600;
+                    cursor: pointer; transition: all 0.16s;
+                    display: flex; align-items: center; gap: 5px;
+                }
+                .ac-btn-ghost:hover { border-color: rgba(255,255,255,0.16); color: rgba(255,255,255,0.72); background: rgba(255,255,255,0.06); }
+
+                .ac-btn-nudge {
+                    flex: 1; padding: 7px 0; border-radius: 8px;
+                    border: 1px solid rgba(217,119,6,0.2);
+                    background: rgba(217,119,6,0.06); color: #f59e0b;
+                    font-family: 'DM Sans', system-ui; font-size: 0.74rem; font-weight: 700;
+                    cursor: pointer; transition: all 0.16s;
+                    display: flex; align-items: center; justify-content: center; gap: 4px;
+                }
+                .ac-btn-nudge:hover { background: rgba(217,119,6,0.13); border-color: rgba(217,119,6,0.38); }
+                .ac-btn-nudge:disabled { opacity: 0.38; cursor: not-allowed; }
+
+                .ac-btn-enter {
+                    flex: 1; padding: 7px 0; border-radius: 8px; border: none;
+                    background: linear-gradient(135deg, #d97706, #f59e0b);
+                    color: #0a0a10; font-family: 'Outfit', system-ui;
+                    font-size: 0.74rem; font-weight: 700;
+                    cursor: pointer; transition: all 0.16s;
+                    display: flex; align-items: center; justify-content: center; gap: 4px;
+                    box-shadow: 0 2px 8px rgba(217,119,6,0.25);
+                }
+                .ac-btn-enter:hover { box-shadow: 0 4px 14px rgba(217,119,6,0.4); transform: translateY(-1px); }
+
+                /* ── progress bar ── */
+                .ac-progress-bar { height: 3px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+                .ac-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #d97706, #f59e0b); transition: width 0.6s cubic-bezier(0.22,1,0.36,1); }
+
+                /* ── section header ── */
+                .ac-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+                .ac-section-line { flex: 1; height: 1px; background: rgba(255,255,255,0.05); }
+
+                /* ── goal badge ── */
+                .ac-goal-badge {
+                    display: inline-flex; align-items: center; gap: 3px;
+                    padding: 2px 7px; border-radius: 5px;
+                    background: rgba(217,119,6,0.1); border: 1px solid rgba(217,119,6,0.2);
+                    font-size: 0.68rem; color: #f59e0b; font-family: 'DM Sans', system-ui; font-weight: 700;
+                }
+
+                /* ── toggle ── */
+                .ac-toggle { width: 34px; height: 19px; border-radius: 10px; border: none; padding: 2px; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+                .ac-toggle-thumb { display: block; width: 15px; height: 15px; border-radius: 50%; background: #fff; position: absolute; top: 2px; transition: left 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.35); }
+                .ac-toggle-on { background: rgba(217,119,6,0.65); }
+                .ac-toggle-off { background: rgba(255,255,255,0.1); }
+
+                .ac-dot-live { animation: ac-pulse-dot 2s ease-in-out infinite; }
+
+                /* ── grid layout ── */
+                .ac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+                @media (max-width: 1100px) { .ac-grid { grid-template-columns: repeat(2, 1fr); } }
+            `}</style>
+
+            <div className="ac-wrap">
+                {/* ── Header ── */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, gap: 16, flexWrap: 'wrap' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(217,119,6,0.13)', border: '1px solid rgba(217,119,6,0.26)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Target size={15} style={{ color: '#f59e0b' }} />
+                            </div>
+                            <h1 className="ac-title" style={{ margin: 0, fontSize: '1.75rem', background: 'linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.38))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                Accountability
+                            </h1>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'DM Sans, system-ui' }}>
+                            Fixez des objectifs, mesurez-vous, avancez ensemble.
                         </p>
                     </div>
+                    {friends.length > 0 && (
+                        <button className="ac-btn-amber" onClick={() => setShowInviteForm(v => !v)}>
+                            {showInviteForm ? <><X size={12} /> Annuler</> : <><Plus size={12} /> Inviter un ami</>}
+                        </button>
+                    )}
+                </div>
 
-                    <div style={{ padding: '1.5rem' }}>
-                        {friends.length === 0 ? (
-                            <p className="text-secondary" style={{ fontSize: '0.9rem' }}>Vous n'avez pas encore d'amis disponibles. <a href="/friends" style={{ color: 'var(--color-primary)' }}>Ajoutez des amis</a> d'abord.</p>
-                        ) : (
-                            <>
-                                {/* Friend picker */}
-                                <p style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.4, marginBottom: '0.75rem' }}>Choisir un ami</p>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.6rem', marginBottom: '1.5rem' }}>
-                                    {friends.map(f => {
-                                        const sel = selectedFriend?.id === f.id;
-                                        return (
-                                            <div
-                                                key={f.id}
-                                                onClick={() => setSelectedFriend(sel ? null : f)}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.7rem 0.9rem',
-                                                    borderRadius: '12px', cursor: 'pointer', transition: 'all 0.18s', position: 'relative',
-                                                    border: sel ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
-                                                    background: sel ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.02)',
-                                                    boxShadow: sel ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
-                                                }}
-                                            >
-                                                <Avatar uid={f.id} avatarUrl={f.avatar_url} avatarStyle={f.avatar_style} size={34} />
-                                                <div className="min-w-0 flex-1">
-                                                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }} className="truncate">{f.full_name || f.email}</div>
-                                                    <div style={{ fontSize: '0.72rem', opacity: 0.4 }} className="truncate">{f.email}</div>
-                                                </div>
-                                                {sel && (
-                                                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                {/* ── Invite Form ── */}
+                {showInviteForm && (
+                    <div className="ac-invite-panel" style={{ marginBottom: 26 }}>
+                        <div className="ac-invite-head">
+                            <div>
+                                <div style={{ fontFamily: 'Outfit, system-ui', fontSize: '0.88rem', fontWeight: 700, color: '#f0f0f5' }}>Nouvelle invitation</div>
+                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>Choisissez un ami et définissez votre objectif commun</div>
+                            </div>
+                            <button className="ac-btn-ghost" onClick={() => setShowInviteForm(false)}><X size={12} /></button>
+                        </div>
+                        <div className="ac-invite-body">
+                            <div>
+                                <span className="ac-field-label">Choisir un ami</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {friends.map(f => (
+                                        <button key={f.id} className={`ac-friend-btn${selectedFriend?.id === f.id ? ' selected' : ''}`}
+                                            onClick={() => setSelectedFriend(f)}>
+                                            <Avatar uid={f.id} avatarUrl={f.avatar_url} avatarStyle={f.avatar_style} size={24} />
+                                            <span>{f.full_name}</span>
+                                            {selectedFriend?.id === f.id && <CheckCircle size={12} style={{ marginLeft: 'auto', color: '#f59e0b' }} />}
+                                        </button>
+                                    ))}
                                 </div>
-
-                                {/* Divider */}
-                                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 0 1.25rem' }} />
-
-                                {/* Options */}
-                                <p style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.4, marginBottom: '1rem' }}>Paramètres</p>
-
-                                {/* Goal toggle row */}
-                                <div style={{ marginBottom: '0.875rem' }}>
-                                    <div className="flex items-center justify-between" style={{ marginBottom: goalEnabled ? '0.75rem' : '0' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Objectif commun</div>
-                                            <div style={{ fontSize: '0.78rem', opacity: 0.45, marginTop: '1px' }}>Fixez un nombre d'heures à atteindre ensemble</div>
-                                        </div>
-                                        {/* Toggle switch */}
-                                        <div
-                                            onClick={() => setGoalEnabled(v => !v)}
-                                            style={{
-                                                width: '42px', height: '24px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0,
-                                                background: goalEnabled ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)',
-                                                position: 'relative', transition: 'background 0.2s',
-                                            }}
-                                        >
-                                            <div style={{
-                                                position: 'absolute', top: '3px', left: goalEnabled ? '21px' : '3px',
-                                                width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                                                transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                                            }} />
-                                        </div>
+                            </div>
+                            {selectedFriend && (
+                                <>
+                                    <div>
+                                        <span className="ac-field-label">Titre (optionnel)</span>
+                                        <input className="ac-input" placeholder={`${selectedFriend.full_name} & ${user!.displayName || 'Moi'}`}
+                                            value={inviteTitle} onChange={e => setInviteTitle(e.target.value)} />
                                     </div>
-                                    {goalEnabled && (
-                                        <div className="flex items-center gap-2" style={{ padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max="40"
-                                                value={weeklyGoalInput}
-                                                onChange={e => setWeeklyGoalInput(e.target.value)}
-                                                className="input"
-                                                style={{ width: '64px', textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', padding: '4px 8px' }}
-                                            />
-                                            <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>heures /</span>
-                                            <div className="flex gap-1">
-                                                {(['daily', 'weekly', 'monthly'] as const).map(f => (
-                                                    <button
-                                                        key={f}
-                                                        onClick={() => setGoalFrequencyInput(f)}
-                                                        style={{
-                                                            padding: '4px 10px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600,
-                                                            background: goalFrequencyInput === f ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
-                                                            border: goalFrequencyInput === f ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                                                            color: goalFrequencyInput === f ? '#fff' : 'rgba(255,255,255,0.55)',
-                                                            transition: 'all 0.15s',
-                                                        }}
-                                                    >
-                                                        {f === 'daily' ? 'jour' : f === 'weekly' ? 'semaine' : 'mois'}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <span className="ac-field-label" style={{ margin: 0 }}>Objectif horaire</span>
+                                            <button className={`ac-toggle ${goalEnabled ? 'ac-toggle-on' : 'ac-toggle-off'}`} onClick={() => setGoalEnabled(v => !v)}>
+                                                <span className="ac-toggle-thumb" style={{ left: goalEnabled ? '17px' : '2px' }} />
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
-
-                                {/* Salon toggle row */}
-                                {myObjectives.length > 0 && (
-                                    <div style={{ marginBottom: '1.25rem' }}>
-                                        <div className="flex items-center justify-between" style={{ marginBottom: salonEnabled ? '0.75rem' : '0' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Salon lié</div>
-                                                <div style={{ fontSize: '0.78rem', opacity: 0.45, marginTop: '1px' }}>Associez un salon de travail à ce partenariat</div>
-                                            </div>
-                                            <div
-                                                onClick={() => setSalonEnabled(v => !v)}
-                                                style={{
-                                                    width: '42px', height: '24px', borderRadius: '12px', cursor: 'pointer', flexShrink: 0,
-                                                    background: salonEnabled ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)',
-                                                    position: 'relative', transition: 'background 0.2s',
-                                                }}
-                                            >
-                                                <div style={{
-                                                    position: 'absolute', top: '3px', left: salonEnabled ? '21px' : '3px',
-                                                    width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
-                                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                                                }} />
-                                            </div>
-                                        </div>
-                                        {salonEnabled && (
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.5rem' }}>
-                                                {myObjectives.map(o => (
-                                                    <div
-                                                        key={o.id}
-                                                        onClick={() => setSelectedObjectiveId(selectedObjectiveId === o.id ? '' : o.id)}
-                                                        style={{
-                                                            padding: '0.6rem 0.9rem', borderRadius: '10px', cursor: 'pointer', transition: 'all 0.15s',
-                                                            display: 'flex', alignItems: 'center', gap: '0.6rem',
-                                                            border: selectedObjectiveId === o.id ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)',
-                                                            background: selectedObjectiveId === o.id ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)',
-                                                        }}
-                                                    >
-                                                        <div style={{ fontSize: '0.85rem', fontWeight: 600 }} className="truncate flex-1">{o.title}</div>
-                                                        {selectedObjectiveId === o.id && (
-                                                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                                <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                        {goalEnabled && (
+                                            <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                                                <input type="number" min="1" max="500" className="ac-input"
+                                                    value={weeklyGoalInput} onChange={e => setWeeklyGoalInput(e.target.value)}
+                                                    style={{ width: 64, textAlign: 'center' }} />
+                                                <span style={{ fontSize: '0.77rem', color: 'rgba(255,255,255,0.3)' }}>h /</span>
+                                                <select className="ac-select" value={goalFrequencyInput} onChange={e => setGoalFrequencyInput(e.target.value)}>
+                                                    <option value="daily">jour</option>
+                                                    <option value="weekly">semaine</option>
+                                                    <option value="monthly">mois</option>
+                                                </select>
                                             </div>
                                         )}
                                     </div>
-                                )}
-
-                                {/* Title field */}
-                                <div style={{ marginBottom: '1.25rem' }}>
-                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px' }}>Titre du partenariat <span style={{ opacity: 0.4, fontWeight: 400, fontSize: '0.8rem' }}>(optionnel)</span></div>
-                                    <div style={{ fontSize: '0.78rem', opacity: 0.45, marginBottom: '0.6rem' }}>Donnez un nom à cette collaboration</div>
-                                    <input
-                                        type="text"
-                                        placeholder="ex: Projet de fin d'études, Routine matin, …"
-                                        maxLength={60}
-                                        value={inviteTitle}
-                                        onChange={e => setInviteTitle(e.target.value)}
-                                        className="input w-full"
-                                        style={{ fontSize: '0.88rem', padding: '0.55rem 0.85rem' }}
-                                    />
-                                </div>
-
-                                {/* Send button */}
-                                <button
-                                    className="btn btn-primary w-full"
-                                    onClick={handleSendInvite}
-                                    disabled={!selectedFriend || sending}
-                                    style={{ opacity: !selectedFriend ? 0.45 : 1, justifyContent: 'center', padding: '0.75rem', fontSize: '0.95rem', fontWeight: 700 }}
-                                >
-                                    {sending ? (
-                                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 1s linear infinite' }} />
-                                    ) : (
-                                        <>Envoyer l'invitation{selectedFriend ? ` à ${selectedFriend.full_name?.split(' ')[0] || 'cet ami'}` : ''}</>
-                                    )}
-                                </button>
-                            </>
-                        )}
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <span className="ac-field-label" style={{ margin: 0 }}>Lier un salon</span>
+                                            <button className={`ac-toggle ${salonEnabled ? 'ac-toggle-on' : 'ac-toggle-off'}`} onClick={() => setSalonEnabled(v => !v)}>
+                                                <span className="ac-toggle-thumb" style={{ left: salonEnabled ? '17px' : '2px' }} />
+                                            </button>
+                                        </div>
+                                        {salonEnabled && myObjectives.length > 0 && (
+                                            <select className="ac-select" style={{ width: '100%' }} value={selectedObjectiveId} onChange={e => setSelectedObjectiveId(e.target.value)}>
+                                                <option value="">— Choisir un salon</option>
+                                                {myObjectives.map(o => <option key={o.id} value={o.id}>{o.title}</option>)}
+                                            </select>
+                                        )}
+                                    </div>
+                                    <button className="ac-btn-amber" disabled={sending || !selectedFriend}
+                                        onClick={async () => {
+                                            if (!selectedFriend || !user || sending) return;
+                                            setSending(true);
+                                            try { await (window as any).__accHandleInvite?.(); }
+                                            finally { setSending(false); }
+                                        }}
+                                        style={{ alignSelf: 'flex-end' }}>
+                                        {sending ? 'Envoi...' : 'Envoyer l\'invitation →'}
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {loading ? (
-                <div className="card card-glass text-center py-16">
-                    <div style={{ width: '2rem', height: '2rem', borderRadius: '50%', border: '3px solid var(--color-border)', borderTopColor: 'var(--color-primary)', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
-                    <p className="text-secondary mt-4">Chargement...</p>
-                </div>
-            ) : (
-                <>
-                    {/* Pending invitations */}
-                    {pendingPartners.length > 0 && (
-                        <div className="mb-8">
-                            <h4 className="text-secondary mb-4" style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                Invitations en attente ({pendingPartners.length})
-                            </h4>
-                            <div className="flex flex-col gap-3">
-                                {pendingPartners.map(p => (
-                                    <div key={p.id} className="card card-glass fade-enter" style={{ padding: '1.25rem', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.04)' }}>
-                                        <div className="flex items-center gap-4 flex-wrap">
-                                            <Avatar uid={p.partnerProfile.id} avatarUrl={p.partnerProfile.avatar_url} avatarStyle={p.partnerProfile.avatar_style} size={44} />
-                                            <div className="flex-1 min-w-0">
-                                                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{p.partnerProfile.full_name}</div>
-                                                {p.invite_title && (
-                                                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '2px' }}>"{p.invite_title}"</div>
+                {/* ── Pending ── */}
+                {pendingPartners.length > 0 && (
+                    <div style={{ marginBottom: 26 }}>
+                        <div className="ac-section-head">
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', boxShadow: '0 0 6px rgba(99,102,241,0.7)', flexShrink: 0 }} />
+                            <span className="ac-label-upper">Invitations reçues · {pendingPartners.length}</span>
+                            <div className="ac-section-line" />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            {pendingPartners.map((p, idx) => (
+                                <div key={p.id} className="ac-pending-row" style={{ animationDelay: `${idx * 0.06}s` }}>
+                                    <Avatar uid={p.partnerProfile?.id || ''} avatarUrl={p.partnerProfile?.avatar_url} avatarStyle={p.partnerProfile?.avatar_style} size={32} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="ac-card-name">{p.full_name}</div>
+                                        {p.invite_title && <div className="ac-card-sub">"{p.invite_title}"</div>}
+                                        {p.weeklyGoal > 0 && (
+                                            <span className="ac-goal-badge" style={{ marginTop: 2, display: 'inline-flex' }}>
+                                                {p.weeklyGoal}h / {p.goalFrequency === 'daily' ? 'jour' : p.goalFrequency === 'monthly' ? 'mois' : 'semaine'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {p.isInviter ? (
+                                        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                                            <button onClick={() => handleAccept(p.id, p.partnerProfile?.id || '')} className="ac-btn-amber" style={{ padding: '6px 11px', fontSize: '0.76rem' }}>
+                                                <CheckCircle size={11} /> Accepter
+                                            </button>
+                                            <button onClick={() => handleDecline(p.id)} className="ac-btn-ghost">
+                                                <X size={11} /> Décliner
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.26)', fontStyle: 'italic', flexShrink: 0 }}>En attente</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Active Partners ── */}
+                <div style={{ marginBottom: 36 }}>
+                    <div className="ac-section-head">
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706', boxShadow: '0 0 6px rgba(217,119,6,0.6)', flexShrink: 0 }} className="ac-dot-live" />
+                        <span className="ac-label-upper">Partenaires actifs · {activePartners.length}</span>
+                        <div className="ac-section-line" />
+                    </div>
+
+                    {loading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem 0' }}>
+                            <div style={{ width: 22, height: 22, borderRadius: '50%', border: '2px solid rgba(217,119,6,0.22)', borderTopColor: '#d97706', animation: 'spin 0.85s linear infinite' }} />
+                        </div>
+                    ) : activePartners.length === 0 && pendingPartners.length === 0 ? (
+                        <div style={{ borderRadius: 14, border: '1px dashed rgba(255,255,255,0.07)', padding: '2.5rem 2rem', textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(217,119,6,0.09)', border: '1px solid rgba(217,119,6,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                                <Users size={18} style={{ color: '#d97706' }} />
+                            </div>
+                            <div style={{ fontFamily: 'Outfit, system-ui', fontWeight: 700, fontSize: '1rem', color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>Aucun partenaire encore</div>
+                            <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.26)', margin: '0 0 16px' }}>
+                                Invitez un ami pour vous tenir mutuellement responsables.
+                            </p>
+                            <button className="ac-btn-amber" onClick={() => setShowInviteForm(true)}>
+                                <Plus size={12} /> Inviter un ami
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="ac-grid">
+                            {activePartners.map((p, idx) => {
+                                const progress = p.weeklyGoal > 0 ? Math.min(1, (p.partnerProfile?.weeklyHours || 0) / p.weeklyGoal) : 0;
+                                const isActive = !!p.activeSessionId;
+                                const canNudge = !p.last_nudged_at || (Date.now() - (p.last_nudged_at?.toDate?.()?.getTime?.() || 0)) > 3600000;
+                                return (
+                                    <div key={p.id} className="ac-card" style={{ animationDelay: `${idx * 0.06}s` }}>
+                                        {/* Top row: avatar + name */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                                                <Avatar uid={p.partnerProfile?.id || ''} avatarUrl={p.partnerProfile?.avatar_url} avatarStyle={p.partnerProfile?.avatar_style} size={38} />
+                                                {isActive && (
+                                                    <div className="ac-dot-live" style={{ position: 'absolute', bottom: 0, right: -1, width: 8, height: 8, borderRadius: '50%', background: '#10b981', border: '2px solid #0e0e14' }} />
                                                 )}
-                                                <div style={{ fontSize: '0.82rem', opacity: 0.55, marginTop: '2px' }}>
-                                                    {p.isInviter ? 'Vous avez envoyé une invitation' : 'Vous a invité'} · {p.weeklyGoal > 0 ? `Objectif : ${p.weeklyGoal}h/${p.goalFrequency === 'daily' ? 'jour' : p.goalFrequency === 'monthly' ? 'mois' : 'sem'}` : 'Sans objectif'}
-                                                </div>
                                             </div>
-                                            {!p.isInviter ? (
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        className="btn btn-sm btn-primary"
-                                                        onClick={() => handleAccept(p.id, p.partnerProfile.id)}
-                                                    >
-                                                        ✓ Accepter
-                                                    </button>
-                                                    <button
-                                                        className="btn btn-sm btn-ghost text-secondary"
-                                                        style={{ border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
-                                                        onClick={() => handleDecline(p.id)}
-                                                    >
-                                                        Refuser
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2">
-                                                    <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>En attente de réponse</span>
-                                                    <button
-                                                        onClick={() => handleDecline(p.id)}
-                                                        title="Annuler l'invitation"
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, padding: '2px' }}
-                                                    >
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
+                                            <div style={{ minWidth: 0 }}>
+                                                <div className="ac-card-name">{p.full_name}</div>
+                                                <div className="ac-card-sub">{isActive ? 'En session' : 'Hors ligne'}</div>
+                                            </div>
+                                            {p.weeklyGoal > 0 && (
+                                                <span className="ac-goal-badge" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                                                    {p.weeklyGoal}h<span style={{ opacity: 0.5, fontWeight: 400 }}>/{p.goalFrequency === 'daily' ? 'j' : p.goalFrequency === 'monthly' ? 'm' : 'sem'}</span>
+                                                </span>
                                             )}
                                         </div>
+
+                                        {/* Progress bar */}
+                                        {p.weeklyGoal > 0 && (
+                                            <div className="ac-progress-bar">
+                                                <div className="ac-progress-fill" style={{ width: `${progress * 100}%` }} />
+                                            </div>
+                                        )}
+
+                                        {/* Actions */}
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+                                            <button
+                                                className="ac-btn-nudge"
+                                                disabled={!canNudge}
+                                                onClick={async () => {
+                                                    if (!canNudge || !user) return;
+                                                    try {
+                                                        await addDoc(collection(db, 'notifications'), {
+                                                            user_id: p.partnerProfile?.id,
+                                                            type: 'nudge',
+                                                            from_user_id: user.uid,
+                                                            from_user_name: user.displayName || 'Quelqu\'un',
+                                                            message: `${user.displayName || 'Quelqu\'un'} vous encourage à bosser ! 💪`,
+                                                            read: false,
+                                                            created_at: serverTimestamp(),
+                                                        });
+                                                        await updateDoc(doc(db, 'accountability_pairs', p.id), { last_nudged_at: serverTimestamp() });
+                                                        setPartners(prev => prev.map(pp => pp.id === p.id ? { ...pp, last_nudged_at: { toDate: () => new Date() } } : pp));
+                                                    } catch {}
+                                                }}
+                                            ><Zap size={11} /> Nudge</button>
+                                            <button
+                                                className="ac-btn-enter"
+                                                onClick={() => router.push(`/accountability/${p.id}`)}
+                                            ><ChevronRight size={12} /> Ouvrir</button>
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* Active partners */}
-                    {activePartners.length > 0 ? (
-                        <div>
-                            <h4 className="text-secondary mb-4" style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                Partenaires actifs ({activePartners.length})
-                            </h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
-                                {activePartners.map(p => {
-                                    const daysSince = getDaysSinceLastSeen(p.last_active);
-                                    const isInactive = daysSince !== null && daysSince >= 2;
-                                    const isNudgeSent = nudging === p.partnerProfile.id;
+                    {friends.length === 0 && activePartners.length === 0 && !loading && (
+                        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 11, background: 'rgba(217,119,6,0.05)', border: '1px solid rgba(217,119,6,0.16)' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.42)', fontFamily: 'DM Sans, system-ui' }}>
+                                Commencez par <span style={{ color: '#f59e0b', fontWeight: 600 }}>ajouter des amis</span> pour pouvoir les inviter.
+                            </div>
+                        </div>
+                    )}
+                </div>
 
-                                    return (
-                                        <div key={p.id} className="card card-glass fade-enter" style={{ padding: '1.5rem', border: isInactive ? '1px solid rgba(251,191,36,0.25)' : '1px solid var(--color-border)' }}>
-                                            {/* Partner header */}
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <Avatar uid={p.partnerProfile.id} avatarUrl={p.partnerProfile.avatar_url} avatarStyle={p.partnerProfile.avatar_style} size={48} style={{ cursor: 'pointer' }} onClick={() => router.push(`/user/${p.partnerProfile.id}`)} />
-                                                <div className="flex-1 min-w-0" style={{ cursor: 'pointer' }} onClick={() => router.push(`/user/${p.partnerProfile.id}`)}>
-                                                    <div style={{ fontWeight: 700, fontSize: '1rem' }} className="truncate">{p.partnerProfile.full_name}</div>
-                                                    {p.invite_title ? (
-                                                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-primary)', marginTop: '1px' }} className="truncate">"{p.invite_title}"</div>
-                                                    ) : (
-                                                        <div style={{ fontSize: '0.78rem', opacity: 0.45 }} className="truncate">{p.partnerProfile.email}</div>
-                                                    )}
+                {/* ── À proximité ── */}
+                {nearbyUsers.length > 0 && (
+                    <div>
+                        <div className="ac-section-head">
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px rgba(16,185,129,0.6)', flexShrink: 0 }} />
+                            <span className="ac-label-upper">À proximité</span>
+                            <div className="ac-section-line" />
+                            <button onClick={handleDisableGeo} style={{ padding: '3px 10px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.35)', fontSize: '0.69rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, system-ui', display: 'flex', alignItems: 'center', gap: 4, letterSpacing: '0.04em' }}>
+                                <MapPin size={10} /> Désactiver
+                            </button>
+                        </div>
+                        <div className="ac-grid">
+                            {nearbyUsers.map((u, idx) => {
+                                const badge = distanceBadge(u.distanceKm);
+                                const isAlreadyPartner = partners.some(pp => pp.partnerProfile?.id === u.id);
+                                return (
+                                    <div key={u.id} className="ac-nearby-card" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <Avatar uid={u.id} avatarUrl={u.avatar_url} avatarStyle={u.avatar_style} size={36} />
+                                            <div style={{ minWidth: 0 }}>
+                                                <div className="ac-card-name">{u.full_name}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: badge.color }} />
+                                                    <span className="ac-card-sub">{badge.label}</span>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDecline(p.id)}
-                                                    title="Retirer le partenariat"
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.3, padding: '4px' }}
-                                                >
-                                                    <X size={14} />
-                                                </button>
                                             </div>
-
-                                            {/* Weekly goal */}
-                                            <div className="flex items-center gap-2 mb-4" style={{ background: 'rgba(99,102,241,0.08)', borderRadius: '10px', padding: '0.6rem 0.9rem' }}>
-                                                <Target size={14} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                                                    Objectif commun : <span style={{ color: 'var(--color-primary)' }}>{p.weeklyGoal > 0 ? `${p.weeklyGoal}h / ${p.goalFrequency === 'daily' ? 'jour' : p.goalFrequency === 'monthly' ? 'mois' : 'semaine'}` : 'Sans objectif'}</span>
-                                                </span>
-                                            </div>
-
-                                            {/* Last activity */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2" style={{ fontSize: '0.82rem' }}>
-                                                    {daysSince === null ? (
-                                                        <span style={{ opacity: 0.4 }}><Clock size={13} className="inline mr-1" />Activité inconnue</span>
-                                                    ) : daysSince === 0 ? (
-                                                        <span style={{ color: '#10b981' }}><CheckCircle size={13} className="inline mr-1" />Actif aujourd'hui</span>
-                                                    ) : daysSince === 1 ? (
-                                                        <span style={{ opacity: 0.6 }}><Clock size={13} className="inline mr-1" />Actif hier</span>
-                                                    ) : (
-                                                        <span style={{ color: '#fbbf24' }}><AlertCircle size={13} className="inline mr-1" />Inactif depuis {daysSince} jours</span>
-                                                    )}
-                                                </div>
-
-                                                {isInactive && (
-                                                    <button
-                                                        onClick={() => handleNudge(p.partnerProfile.id, p.partnerProfile.full_name)}
-                                                        disabled={!!nudging}
-                                                        className="btn btn-sm"
-                                                        style={{
-                                                            background: isNudgeSent ? 'rgba(16,185,129,0.2)' : 'rgba(251,191,36,0.15)',
-                                                            color: isNudgeSent ? '#10b981' : '#fbbf24',
-                                                            border: `1px solid ${isNudgeSent ? 'rgba(16,185,129,0.3)' : 'rgba(251,191,36,0.3)'}`,
-                                                            fontSize: '0.78rem',
-                                                        }}
-                                                    >
-                                                        {isNudgeSent ? '✓ Nudge envoyé !' : <><Zap size={12} /> Envoyer un nudge</>}
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {/* Open detail page */}
-                                            <button
-                                                onClick={() => router.push(`/accountability/${p.id}`)}
-                                                className="btn btn-sm w-full mt-3"
-                                                style={{ justifyContent: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)' }}
-                                            >
-                                                Voir le détail & chat →
-                                            </button>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ) : pendingPartners.length === 0 ? (
-                        <div className="card card-glass text-center py-16 fade-enter">
-                            <Users size={52} style={{ margin: '0 auto 1rem', opacity: 0.15 }} />
-                            <h3 className="text-secondary mb-2">Aucun partenaire pour l'instant</h3>
-                            <p style={{ opacity: 0.5, marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                                Invitez un ami avec qui vous partagez une catégorie d'objectif pour vous motiver mutuellement.
-                            </p>
-                            {friends.length > 0 ? (
-                                <button className="btn btn-primary shadow-glow" onClick={() => setShowInviteForm(true)}>
-                                    + Inviter un ami
-                                </button>
-                            ) : (
-                                <button className="btn btn-outline" onClick={() => router.push('/friends')}>
-                                    Ajouter des amis d'abord →
-                                </button>
-                            )}
-                        </div>
-                    ) : null}
-
-                    {/* Geo-located accountability */}
-                    <div style={{ marginTop: '2.5rem', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                        <div className="flex items-start justify-between flex-wrap gap-3 mb-5">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <MapPin size={16} style={{ color: '#10b981' }} />
-                                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Trouver près de vous</h4>
-                                </div>
-                                <p style={{ margin: 0, fontSize: '0.82rem', opacity: 0.5 }}>
-                                    Rencontrez des partenaires dans votre ville ou quartier pour travailler ensemble en personne.
-                                </p>
-                            </div>
-                            {myGeo?.visible ? (
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => myGeo && loadNearbyUsers(myGeo.lat, myGeo.lng, myGeo.city)}
-                                        disabled={geoLoading}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: geoLoading ? 0.4 : 0.6, padding: '4px' }}
-                                        title="Rafraîchir"
-                                    >
-                                        <RefreshCw size={14} style={{ animation: geoLoading ? 'spin 1s linear infinite' : 'none' }} />
-                                    </button>
-                                    <button
-                                        onClick={handleDisableGeo}
-                                        style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}
-                                    >
-                                        Masquer ma position
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={handleEnableGeo}
-                                    disabled={geoLoading}
-                                    className="btn btn-sm"
-                                    style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#10b981', gap: '6px', display: 'flex', alignItems: 'center' }}
-                                >
-                                    {geoLoading ? (
-                                        <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: '2px solid rgba(16,185,129,0.3)', borderTopColor: '#10b981', animation: 'spin 1s linear infinite' }} />
-                                    ) : (
-                                        <Navigation2 size={13} />
-                                    )}
-                                    Activer la géolocalisation
-                                </button>
-                            )}
-                        </div>
-
-                        {myGeo?.visible && (
-                            <>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#10b981', marginBottom: '1.25rem' }}>
-                                    <MapPin size={11} />
-                                    {myGeo.neighborhood ? `${myGeo.neighborhood}, ` : ''}{myGeo.city || 'Position partagée'}
-                                    <span style={{ opacity: 0.6 }}>· Visible</span>
-                                </div>
-
-                                {geoLoading ? (
-                                    <div className="text-center py-8">
-                                        <div style={{ width: '1.5rem', height: '1.5rem', borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: '#10b981', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
-                                        <p style={{ opacity: 0.4, fontSize: '0.82rem', marginTop: '0.75rem' }}>Recherche en cours...</p>
+                                        {!isAlreadyPartner && (
+                                            <button className="ac-btn-amber" style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem', padding: '6px 0' }}
+                                                onClick={() => handleInviteNearby(u)}>
+                                                + Inviter
+                                            </button>
+                                        )}
                                     </div>
-                                ) : nearbyUsers.length === 0 ? (
-                                    <div className="card card-glass text-center py-10 fade-enter" style={{ border: '1px solid rgba(16,185,129,0.12)', background: 'rgba(16,185,129,0.03)' }}>
-                                        <MapPin size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.15 }} />
-                                        <p style={{ opacity: 0.45, fontSize: '0.88rem', margin: 0 }}>Aucun utilisateur trouvé dans un rayon de 50 km.</p>
-                                        <p style={{ opacity: 0.3, fontSize: '0.78rem', marginTop: '4px' }}>D'autres utilisateurs apparaîtront ici quand ils activeront la géolocalisation.</p>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                        {nearbyUsers.map(u => {
-                                            const badge = distanceBadge(u._distanceKm);
-                                            const isInviting = invitingNearby === u.id;
-                                            const isExpanded = geoInviteTarget === u.id;
-                                            return (
-                                                <div key={u.id} className="card card-glass fade-enter" style={{ border: isExpanded ? '1px solid rgba(99,102,241,0.35)' : '1px solid rgba(16,185,129,0.15)', overflow: 'hidden', transition: 'border-color 0.2s' }}>
-                                                    {/* User row */}
-                                                    <div style={{ padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-                                                        <Avatar uid={u.id} avatarUrl={u.avatar_url} avatarStyle={u.avatar_style} size={40} />
-                                                        <div className="flex-1 min-w-0">
-                                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }} className="truncate">{u.full_name || 'Utilisateur'}</div>
-                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', padding: '1px 7px', borderRadius: '12px', background: `${badge.color}22`, color: badge.color, marginTop: '3px' }}>
-                                                                <MapPin size={9} />
-                                                                {badge.label}
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (isExpanded) { setGeoInviteTarget(null); }
-                                                                else { setGeoInviteTarget(u.id); setGeoGoalEnabled(true); setGeoGoalInput('5'); setGeoFreqInput('weekly'); setGeoSalonEnabled(false); setGeoSalonObjectiveId(''); setGeoInviteTitle(''); }
-                                                            }}
-                                                            disabled={!!invitingNearby}
-                                                            className="btn btn-sm"
-                                                            style={{ flexShrink: 0, background: isExpanded ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.15)', border: isExpanded ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(99,102,241,0.3)', color: isExpanded ? 'rgba(255,255,255,0.5)' : 'var(--color-primary)', fontSize: '0.78rem' }}
-                                                        >
-                                                            {isExpanded ? '✕' : '+ Inviter'}
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Expanded invite form */}
-                                                    {isExpanded && (
-                                                        <div style={{ padding: '0 1.1rem 1.1rem', borderTop: '1px solid rgba(255,255,255,0.06)' }} className="fade-enter">
-                                                            <p style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.4, margin: '0.875rem 0 0.75rem' }}>Paramètres</p>
-
-                                                            {/* Goal toggle */}
-                                                            <div style={{ marginBottom: '0.75rem' }}>
-                                                                <div className="flex items-center justify-between" style={{ marginBottom: geoGoalEnabled ? '0.6rem' : 0 }}>
-                                                                    <div>
-                                                                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Objectif commun</div>
-                                                                        <div style={{ fontSize: '0.75rem', opacity: 0.4 }}>Heures à atteindre ensemble</div>
-                                                                    </div>
-                                                                    <div onClick={() => setGeoGoalEnabled(v => !v)} style={{ width: '38px', height: '22px', borderRadius: '11px', cursor: 'pointer', flexShrink: 0, background: geoGoalEnabled ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)', position: 'relative', transition: 'background 0.2s' }}>
-                                                                        <div style={{ position: 'absolute', top: '2px', left: geoGoalEnabled ? '18px' : '2px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-                                                                    </div>
-                                                                </div>
-                                                                {geoGoalEnabled && (
-                                                                    <div className="flex items-center gap-2" style={{ padding: '0.6rem 0.875rem', borderRadius: '10px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                                                                        <input type="number" min="1" max="40" value={geoGoalInput} onChange={e => setGeoGoalInput(e.target.value)} className="input" style={{ width: '56px', textAlign: 'center', fontWeight: 700, fontSize: '1rem', padding: '3px 6px' }} />
-                                                                        <span style={{ fontSize: '0.82rem', opacity: 0.55 }}>h /</span>
-                                                                        <div className="flex gap-1">
-                                                                            {(['daily', 'weekly', 'monthly'] as const).map(f => (
-                                                                                <button key={f} onClick={() => setGeoFreqInput(f)} style={{ padding: '3px 9px', borderRadius: '7px', fontSize: '0.77rem', cursor: 'pointer', fontWeight: 600, background: geoFreqInput === f ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)', border: geoFreqInput === f ? 'none' : '1px solid rgba(255,255,255,0.1)', color: geoFreqInput === f ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'all 0.15s' }}>
-                                                                                    {f === 'daily' ? 'jour' : f === 'weekly' ? 'sem.' : 'mois'}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Salon toggle */}
-                                                            {myObjectives.length > 0 && (
-                                                                <div style={{ marginBottom: '0.875rem' }}>
-                                                                    <div className="flex items-center justify-between" style={{ marginBottom: geoSalonEnabled ? '0.6rem' : 0 }}>
-                                                                        <div>
-                                                                            <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Salon lié</div>
-                                                                            <div style={{ fontSize: '0.75rem', opacity: 0.4 }}>Associez un salon de travail</div>
-                                                                        </div>
-                                                                        <div onClick={() => setGeoSalonEnabled(v => !v)} style={{ width: '38px', height: '22px', borderRadius: '11px', cursor: 'pointer', flexShrink: 0, background: geoSalonEnabled ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)', position: 'relative', transition: 'background 0.2s' }}>
-                                                                            <div style={{ position: 'absolute', top: '2px', left: geoSalonEnabled ? '18px' : '2px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-                                                                        </div>
-                                                                    </div>
-                                                                    {geoSalonEnabled && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                                                            {myObjectives.map(o => (
-                                                                                <div key={o.id} onClick={() => setGeoSalonObjectiveId(geoSalonObjectiveId === o.id ? '' : o.id)} style={{ padding: '0.5rem 0.8rem', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', border: geoSalonObjectiveId === o.id ? '2px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.08)', background: geoSalonObjectiveId === o.id ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.02)', transition: 'all 0.15s' }}>
-                                                                                    <div style={{ fontSize: '0.83rem', fontWeight: 600 }} className="truncate flex-1">{o.title}</div>
-                                                                                    {geoSalonObjectiveId === o.id && <div style={{ width: '15px', height: '15px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></div>}
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Title field */}
-                                                            <div style={{ marginBottom: '0.875rem' }}>
-                                                                <div style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Titre <span style={{ opacity: 0.4, fontWeight: 400, fontSize: '0.76rem' }}>(optionnel)</span></div>
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder='ex: "Session matin Strasbourg", …'
-                                                                    maxLength={60}
-                                                                    value={geoInviteTitle}
-                                                                    onChange={e => setGeoInviteTitle(e.target.value)}
-                                                                    className="input w-full"
-                                                                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
-                                                                />
-                                                            </div>
-
-                                                            <button
-                                                                className="btn btn-primary w-full"
-                                                                onClick={() => handleInviteNearby(u)}
-                                                                disabled={!!invitingNearby}
-                                                                style={{ justifyContent: 'center', padding: '0.6rem', fontSize: '0.88rem', fontWeight: 700 }}
-                                                            >
-                                                                {isInviting ? <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 1s linear infinite' }} /> : `Envoyer l'invitation à ${u.full_name?.split(' ')[0] || 'cet utilisateur'}`}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </>
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
-                </>
-            )}
+                )}
+
+                {!myGeo?.visible && (
+                    <div>
+                        <div className="ac-section-head">
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                            <span className="ac-label-upper">À proximité</span>
+                            <div className="ac-section-line" />
+                        </div>
+                        <div style={{ padding: '18px', borderRadius: 12, border: '1px dashed rgba(255,255,255,0.07)', textAlign: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.32)', marginBottom: 10, fontFamily: 'DM Sans, system-ui' }}>
+                                Activez la localisation pour voir les autres utilisateurs près de vous.
+                            </div>
+                            <button className="ac-btn-amber" style={{ margin: '0 auto', fontSize: '0.76rem', padding: '7px 14px' }} onClick={handleEnableGeo}>
+                                <Navigation2 size={11} /> Activer la localisation
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

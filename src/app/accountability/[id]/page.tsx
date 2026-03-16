@@ -1264,970 +1264,1071 @@ export default function AccountabilityDetail() {
 
     return (
         <>
-        <div className="container fade-enter" style={{ maxWidth: '980px', padding: '2rem 1.5rem' }}>
-            {/* Back */}
-            <button onClick={() => router.push('/accountability')} className="btn btn-sm btn-ghost text-secondary mb-6" style={{ gap: '6px' }}>
-                <ArrowLeft size={15} /> Retour
-            </button>
+        <div style={{ paddingLeft: '228px', paddingRight: '3rem', paddingTop: '2rem', paddingBottom: '4rem', minHeight: '100vh' }}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
-            {/* Header */}
-            <div className="flex items-center gap-4 mb-8 flex-wrap">
-                <div style={{ position: 'relative' }}>
-                    <Avatar uid={partner.id} avatarUrl={partner.avatar_url} avatarStyle={partner.avatar_style} size={64}
-                        style={{ border: '3px solid var(--color-primary)', cursor: 'pointer' }}
-                        onClick={() => router.push(`/user/${partner.id}`)} />
-                    {isPartnerActive && (
-                        <span style={{ position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: '50%', background: '#10b981', border: '2px solid var(--color-bg)', boxShadow: '0 0 6px rgba(16,185,129,0.7)' }} />
-                    )}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <h2 className="m-0" style={{ fontSize: '1.6rem', fontWeight: 800 }}>{pair.title || partner.full_name}</h2>
-                    <p className="text-secondary m-0 text-sm">{partner.email}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                        {isPartnerActive ? (
-                            <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}><CheckCircle size={12} className="inline mr-1" />En train de travailler</span>
-                        ) : (() => {
-                            const days = getDaysSince(partnerPresence?.last_seen);
-                            if (days === null) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}><Clock size={12} className="inline mr-1" />Activité inconnue</span>;
-                            if (days === 0) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' }}><Clock size={12} className="inline mr-1" />Vu aujourd'hui</span>;
-                            if (days === 1) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}><Clock size={12} className="inline mr-1" />Vu hier</span>;
-                            return <span style={{ fontSize: '0.78rem', color: '#fbbf24' }}><AlertCircle size={12} className="inline mr-1" />Inactif depuis {days} jour{days > 1 ? 's' : ''}</span>;
-                        })()}
-                        <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
-                        <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>
-                            Partenaires depuis {pair.created_at?.toDate ? pair.created_at.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
-                        </span>
-                        {totalMilestones > 0 && (
-                            <>
-                                <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
-                                <span style={{ fontSize: '0.78rem', color: completedMilestones === totalMilestones ? '#10b981' : 'rgba(255,255,255,0.4)' }}>
-                                    {completedMilestones}/{totalMilestones} étapes
+                @keyframes ad-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                @keyframes ad-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); } }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes pulse-ring-acc {
+                    0%   { box-shadow: 0 0 0 0   rgba(99,102,241, 0.7); }
+                    70%  { box-shadow: 0 0 0 24px rgba(99,102,241, 0); }
+                    100% { box-shadow: 0 0 0 0   rgba(99,102,241, 0); }
+                }
+                @keyframes fgSlideIn {
+                    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+
+                .ad-wrap { font-family: 'DM Sans', system-ui; color: #e8e8ef; }
+                .ad-heading { font-family: 'Outfit', system-ui; font-weight: 800; letter-spacing: -0.03em; }
+                .ad-mono { font-family: 'DM Sans', system-ui; }
+
+                /* Tab nav */
+                .ad-tabbar {
+                    display: flex; gap: 2px;
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid rgba(255,255,255,0.06);
+                    border-radius: 14px; padding: 4px;
+                    margin-bottom: 20px;
+                    flex-wrap: wrap;
+                }
+                .ad-tab {
+                    flex: 1 1 auto;
+                    padding: 8px 10px;
+                    border-radius: 10px; border: none;
+                    font-family: 'DM Sans', system-ui;
+                    font-size: 0.78rem; font-weight: 600;
+                    cursor: pointer; transition: all 0.2s;
+                    display: flex; align-items: center; justify-content: center; gap: 5px;
+                    white-space: nowrap;
+                }
+                .ad-tab-active {
+                    background: rgba(217,119,6,0.18);
+                    color: #f59e0b;
+                    box-shadow: 0 0 0 1px rgba(217,119,6,0.35);
+                }
+                .ad-tab-inactive {
+                    background: transparent;
+                    color: rgba(255,255,255,0.38);
+                }
+                .ad-tab-inactive:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); }
+
+                /* Cards */
+                .ad-card {
+                    background: rgba(14,14,20,0.95);
+                    border: 1px solid rgba(255,255,255,0.07);
+                    border-radius: 18px;
+                    padding: 20px 22px;
+                    animation: ad-in 0.3s cubic-bezier(0.22,1,0.36,1) both;
+                }
+
+                /* Inputs */
+                .ad-input {
+                    width: 100%; box-sizing: border-box;
+                    background: rgba(255,255,255,0.04);
+                    border: 1px solid rgba(255,255,255,0.09);
+                    border-radius: 11px;
+                    color: #f0f0f5;
+                    font-family: 'DM Sans', system-ui; font-size: 0.88rem;
+                    padding: 10px 14px; outline: none;
+                    transition: border-color 0.2s, box-shadow 0.2s;
+                }
+                .ad-input:focus { border-color: rgba(217,119,6,0.5); box-shadow: 0 0 0 3px rgba(217,119,6,0.1); }
+                .ad-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.32); display: block; margin-bottom: 7px; }
+
+                /* Buttons */
+                .ad-btn-amber {
+                    padding: 9px 18px; border-radius: 11px; border: none;
+                    background: linear-gradient(135deg, #d97706, #f59e0b);
+                    color: #0a0a10; font-family: 'Outfit', system-ui; font-size: 0.82rem; font-weight: 700;
+                    cursor: pointer; transition: all 0.2s;
+                    box-shadow: 0 3px 12px rgba(217,119,6,0.3);
+                    display: flex; align-items: center; gap: 6px;
+                }
+                .ad-btn-amber:hover { box-shadow: 0 5px 18px rgba(217,119,6,0.45); transform: translateY(-1px); }
+                .ad-btn-amber:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+                .ad-btn-ghost {
+                    padding: 8px 14px; border-radius: 10px;
+                    border: 1px solid rgba(255,255,255,0.09);
+                    background: rgba(255,255,255,0.04);
+                    color: rgba(255,255,255,0.5);
+                    font-family: 'DM Sans', system-ui; font-size: 0.82rem; font-weight: 600;
+                    cursor: pointer; transition: all 0.18s;
+                    display: flex; align-items: center; gap: 6px;
+                }
+                .ad-btn-ghost:hover { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.8); }
+
+                /* Progress bar */
+                .ad-pbar { height: 5px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+                .ad-pbar-fill { height: 100%; border-radius: 5px; transition: width 0.6s cubic-bezier(0.22,1,0.36,1); }
+
+                /* Chat */
+                .ad-chat-bubble-me {
+                    max-width: 82%; padding: 9px 13px;
+                    border-radius: 16px 16px 4px 16px;
+                    background: linear-gradient(135deg, #d97706, #f59e0b);
+                    color: #0a0a10; font-size: 0.85rem; line-height: 1.4;
+                }
+                .ad-chat-bubble-partner {
+                    max-width: 82%; padding: 9px 13px;
+                    border-radius: 16px 16px 16px 4px;
+                    background: rgba(255,255,255,0.07);
+                    border: 1px solid rgba(255,255,255,0.08);
+                    color: #e0e0ea; font-size: 0.85rem; line-height: 1.4;
+                }
+
+                /* Milestone */
+                .ad-milestone {
+                    padding: 13px 16px; border-radius: 13px;
+                    background: rgba(14,14,20,0.95);
+                    border: 1px solid rgba(255,255,255,0.07);
+                    display: flex; align-items: flex-start; gap: 12px;
+                    transition: border-color 0.2s;
+                }
+                .ad-milestone:hover { border-color: rgba(255,255,255,0.14); }
+
+                /* Session row */
+                .ad-session {
+                    padding: 14px 18px; border-radius: 14px;
+                    background: rgba(14,14,20,0.95);
+                    border: 1px solid rgba(255,255,255,0.07);
+                    border-left: 3px solid #d97706;
+                    transition: border-color 0.2s;
+                }
+                .ad-session:hover { border-color: rgba(217,119,6,0.4); }
+
+                /* Resource row */
+                .ad-resource {
+                    padding: 13px 16px; border-radius: 13px;
+                    background: rgba(14,14,20,0.95);
+                    border: 1px solid rgba(255,255,255,0.07);
+                    display: flex; align-items: flex-start; gap: 12px;
+                }
+
+                /* Coworking status pill */
+                .ad-presence-pill {
+                    display: flex; align-items: center; gap: 8px;
+                    padding: 10px 16px; border-radius: 12px;
+                    border: 1px solid rgba(255,255,255,0.08);
+                    background: rgba(255,255,255,0.03);
+                    transition: all 0.2s; flex: 1;
+                }
+
+                /* Toggle */
+                .ad-toggle { width: 38px; height: 21px; border-radius: 11px; border: none; padding: 2px; position: relative; cursor: pointer; transition: background 0.25s; flex-shrink: 0; }
+                .ad-toggle-thumb { display: block; width: 17px; height: 17px; border-radius: 50%; background: #fff; position: absolute; top: 2px; transition: left 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+
+                /* Mode button */
+                .ad-mode-btn { flex: 1; padding: 8px 4px; border-radius: 10px; border: none; font-family: 'DM Sans', system-ui; font-size: 0.76rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+
+                /* AI tip */
+                .ad-ai-tip { display: flex; gap: 11px; padding: 12px 14px; border-radius: 12px; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.14); }
+
+                /* Rhythm button */
+                .ad-rhythm-btn { flex: 1; padding: 10px 6px; border-radius: 11px; cursor: pointer; transition: all 0.2s; border: 1px solid; }
+            `}</style>
+
+            <div className="ad-wrap">
+
+                {/* ── Back ── */}
+                <button onClick={() => router.push('/accountability')} className="ad-btn-ghost" style={{ marginBottom: 24, fontSize: '0.8rem' }}>
+                    <ArrowLeft size={14} /> Retour
+                </button>
+
+                {/* ── Header ── */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, marginBottom: 32, flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <Avatar uid={partner.id} avatarUrl={partner.avatar_url} avatarStyle={partner.avatar_style} size={68}
+                            style={{ border: `3px solid ${isPartnerActive ? '#10b981' : 'rgba(217,119,6,0.4)'}`, cursor: 'pointer', transition: 'border-color 0.3s' }}
+                            onClick={() => router.push(`/user/${partner.id}`)} />
+                        {isPartnerActive && (
+                            <span style={{ position: 'absolute', bottom: 3, right: 3, width: 14, height: 14, borderRadius: '50%', background: '#10b981', border: '2px solid #090a0f', animation: 'ad-pulse 2s ease infinite' }} />
+                        )}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <h2 className="ad-heading" style={{ margin: '0 0 4px', fontSize: '1.7rem', color: '#f0f0f5' }}>
+                            {pair.title || partner.full_name}
+                        </h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                            {isPartnerActive ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} /> En train de travailler
                                 </span>
-                            </>
-                        )}
-                    </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0" style={{ alignItems: 'flex-start' }}>
-                    {/* Nudge button */}
-                    <button onClick={handleNudge} disabled={nudging || nudgeSent} className="btn btn-sm"
-                        style={{ background: nudgeSent ? 'rgba(16,185,129,0.12)' : 'rgba(251,191,36,0.1)', color: nudgeSent ? '#10b981' : '#fbbf24', border: `1px solid ${nudgeSent ? 'rgba(16,185,129,0.3)' : 'rgba(251,191,36,0.25)'}`, gap: '6px', borderRadius: '10px' }}>
-                        {nudgeSent ? <><CheckCircle size={13} /> Envoyé</> : <><Zap size={13} /> Nudge</>}
-                    </button>
-
-                    {/* Settings button + popover */}
-                    <div style={{ position: 'relative' }} ref={settingsPanelRef}>
-                        <button
-                            onClick={() => setShowSettingsPanel(v => !v)}
-                            title="Paramètres de la session"
-                            style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                width: 34, height: 34, borderRadius: '10px',
-                                background: showSettingsPanel ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
-                                border: `1px solid ${showSettingsPanel ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                                color: showSettingsPanel ? 'var(--color-primary)' : 'rgba(255,255,255,0.45)',
-                                cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0,
-                            }}
-                            onMouseEnter={e => { if (!showSettingsPanel) { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; } }}
-                            onMouseLeave={e => { if (!showSettingsPanel) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; } }}
-                        >
-                            <Settings2 size={15} />
-                        </button>
-
-                        {/* Floating settings panel */}
-                        {showSettingsPanel && (
-                            <div style={{
-                                position: 'absolute', top: '42px', right: 0, zIndex: 200,
-                                width: 320, borderRadius: '16px',
-                                background: 'rgba(18,18,26,0.97)',
-                                backdropFilter: 'blur(20px)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                boxShadow: '0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.15)',
-                                padding: '1.25rem',
-                                display: 'flex', flexDirection: 'column', gap: '1rem',
-                                animation: 'fadeIn 0.15s ease',
-                            }}>
-                                {/* Header */}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.88rem' }}>
-                                        <Settings2 size={14} style={{ color: 'var(--color-primary)' }} />
-                                        Paramètres de la session
-                                    </div>
-                                    <button onClick={() => setShowSettingsPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '2px', display: 'flex' }}>
-                                        <X size={14} />
-                                    </button>
-                                </div>
-
-                                {/* Title */}
-                                <div>
-                                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                                        Titre
-                                    </label>
-                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                        <input
-                                            type="text"
-                                            className="input flex-1"
-                                            placeholder={partner.full_name}
-                                            value={titleInput}
-                                            onChange={e => setTitleInput(e.target.value)}
-                                            style={{ fontSize: '0.85rem', height: '34px', padding: '0 10px' }}
-                                        />
-                                        <button
-                                            onClick={handleSaveTitle}
-                                            disabled={savingTitle || titleInput.trim() === (pair.title || '')}
-                                            style={{ height: '34px', padding: '0 12px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer', flexShrink: 0, opacity: titleInput.trim() === (pair.title || '') ? 0.4 : 1 }}
-                                        >
-                                            {savingTitle ? '...' : 'OK'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Weekly hours toggle */}
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                            Objectif hebdomadaire
-                                        </label>
-                                        {/* Toggle */}
-                                        <button
-                                            onClick={() => {
-                                                const next = !hoursEnabled;
-                                                setHoursEnabled(next);
-                                                if (!next) {
-                                                    // Disable: save 0 immediately
-                                                    updateDoc(doc(db, 'accountability_pairs', id as string), { weekly_hours_goal: 0 });
-                                                    setPair((p: any) => ({ ...p, weekly_hours_goal: 0 }));
-                                                }
-                                            }}
-                                            style={{
-                                                width: 40, height: 22, borderRadius: '11px', border: 'none', cursor: 'pointer', padding: 2, transition: 'background 0.25s',
-                                                background: hoursEnabled ? 'rgba(99,102,241,0.7)' : 'rgba(255,255,255,0.12)',
-                                                position: 'relative', flexShrink: 0,
-                                            }}
-                                        >
-                                            <span style={{
-                                                display: 'block', width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                                                position: 'absolute', top: '50%', transform: `translateX(${hoursEnabled ? '18px' : '0px'}) translateY(-50%)`,
-                                                transition: 'transform 0.25s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                                            }} />
-                                        </button>
-                                    </div>
-                                    {hoursEnabled && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <input
-                                                type="number" min="1" max="500"
-                                                className="input"
-                                                value={goalInput}
-                                                onChange={e => setGoalInput(e.target.value)}
-                                                style={{ width: '64px', textAlign: 'center', fontSize: '0.88rem', height: '34px', padding: '0 8px' }}
-                                            />
-                                            <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.45)' }}>h / </span>
-                                            <select
-                                                value={goalFreq}
-                                                onChange={e => setGoalFreq(e.target.value)}
-                                                style={{ height: '34px', fontSize: '0.85rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0 4px', color: '#fff' }}
-                                            >
-                                                <option value="daily">jour</option>
-                                                <option value="weekly">semaine</option>
-                                                <option value="monthly">mois</option>
-                                            </select>
-                                            <button
-                                                onClick={() => { handleSaveGoal(); }}
-                                                disabled={goalInput === String(pair.weekly_hours_goal ?? 0) && goalFreq === (pair.goal_frequency || 'weekly')}
-                                                style={{ marginLeft: 'auto', height: '34px', padding: '0 12px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer', opacity: (goalInput === String(pair.weekly_hours_goal ?? 0) && goalFreq === (pair.goal_frequency || 'weekly')) ? 0.4 : 1 }}
-                                            >
-                                                OK
-                                            </button>
-                                        </div>
-                                    )}
-                                    {!hoursEnabled && (
-                                        <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.3)', margin: 0 }}>Aucun objectif d'heures défini</p>
-                                    )}
-                                </div>
-
-                                {/* Linked Salon */}
-                                <div>
-                                    <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                                        Salon lié
-                                    </label>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <button onClick={() => handleLinkSalon('')} style={{ textAlign: 'left', padding: '6px 10px', borderRadius: '8px', fontSize: '0.82rem', background: !pair.objective_id ? 'rgba(255,255,255,0.08)' : 'transparent', border: !pair.objective_id ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent', color: !pair.objective_id ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
-                                            ✕ Aucun salon
-                                        </button>
-                                        {myObjectives.map(o => (
-                                            <button key={o.id} onClick={() => handleLinkSalon(o.id)} style={{ textAlign: 'left', padding: '6px 10px', borderRadius: '8px', fontSize: '0.82rem', background: pair.objective_id === o.id ? 'rgba(99,102,241,0.15)' : 'transparent', border: pair.objective_id === o.id ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent', color: pair.objective_id === o.id ? 'var(--color-primary)' : 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
-                                                {o.title}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Leave button */}
-                    {!confirmLeave ? (
-                        <button onClick={() => setConfirmLeave(true)} className="btn btn-sm btn-ghost"
-                            style={{ color: 'rgba(239,68,68,0.7)', border: '1px solid rgba(239,68,68,0.18)', gap: '5px', borderRadius: '10px' }}>
-                            <X size={13} /> Quitter
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: '10px', padding: '4px 10px' }}>
-                            <span style={{ fontSize: '0.78rem', color: '#f87171', whiteSpace: 'nowrap' }}>Quitter ?</span>
-                            <button onClick={handleLeave} disabled={leaving} className="btn btn-sm" style={{ background: 'rgba(239,68,68,0.22)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', fontSize: '0.78rem', padding: '3px 10px' }}>
-                                {leaving ? '...' : 'Confirmer'}
-                            </button>
-                            <button onClick={() => setConfirmLeave(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '2px' }}>
-                                <X size={13} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Two-column layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
-
-                {/* LEFT: tabs */}
-                <div>
-                    {/* Tab bar */}
-                    <div className="flex gap-1 mb-5" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '14px', padding: '4px', border: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
-                        {TABS.map(t => (
-                            <button key={t.key} onClick={() => setActiveTab(t.key)}
-                                style={{
-                                    flex: '1 1 auto', padding: '8px 6px', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 600,
-                                    border: 'none', cursor: 'pointer', transition: 'all 0.2s', gap: '4px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: activeTab === t.key ? 'rgba(99,102,241,0.2)' : 'transparent',
-                                    color: activeTab === t.key ? 'var(--color-primary)' : 'rgba(255,255,255,0.45)',
-                                    boxShadow: activeTab === t.key ? '0 0 0 1px rgba(99,102,241,0.3)' : 'none',
-                                }}>
-                                {t.icon} {t.label}
-                                {t.key === 'coworking' && (amInSession || partnerInSession) && (
-                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', marginLeft: 2, display: 'inline-block' }} />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* ── TAB: RÉSUMÉ ── */}
-                    {activeTab === 'resume' && (
-                        <div className="flex flex-col gap-4 fade-enter">
-                            {/* Weekly goal */}
-                            <div className="card card-glass" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.04)' }}>
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="flex items-center gap-2 m-0 text-primary" style={{ fontSize: '0.9rem' }}>
-                                        <Target size={16} /> Objectif hebdomadaire
-                                    </h4>
-                                    <button onClick={() => setShowSettingsPanel(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, padding: '2px 6px' }}><Settings2 size={13} /></button>
-                                </div>
-                                {weeklyGoal > 0 ? (
-                                    <>
-                                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--color-primary)', lineHeight: 1 }}>{weeklyGoal}h</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>par {pair.goal_frequency === 'daily' ? 'jour' : pair.goal_frequency === 'monthly' ? 'mois' : 'semaine'} · objectif commun</div>
-                                    </>
-                                ) : (
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>Pas d'objectif fixé</div>
-                                )}
-                            </div>
-
-                            {/* Progress if salon linked */}
-                            {objective && (
-                                <div className="card card-glass" style={{ padding: '1.25rem' }}>
-                                    <h4 className="flex items-center gap-2 m-0 mb-4" style={{ fontSize: '0.9rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem' }}>
-                                        📊 Progression dans le salon
-                                    </h4>
-                                    {[
-                                        { label: 'Vous', val: myProgress, color: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))' },
-                                        { label: partner.full_name, val: partnerProgress, color: 'linear-gradient(90deg, #10b981, #34d399)' },
-                                    ].map(({ label, val, color }) => (
-                                        <div key={label} className="mb-4 last:mb-0">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{label}</span>
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: color.includes('primary') ? 'var(--color-primary)' : '#10b981' }}>{fmtHours(val)} / {targetHours}h</span>
-                                            </div>
-                                            <div style={{ height: '8px', borderRadius: '6px', background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                                                <div style={{ height: '100%', width: `${Math.min(100, (val / (targetHours || 1)) * 100)}%`, borderRadius: '6px', background: color, transition: 'width 0.5s ease' }} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Linked salon */}
-                            <div className="card card-glass" style={{ padding: '1.25rem' }}>
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="m-0" style={{ fontSize: '0.9rem' }}>🔗 Salon lié</h4>
-                                    <button onClick={() => setEditingSalon(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, padding: '2px 6px' }}><Edit3 size={13} /></button>
-                                </div>
-                                {editingSalon ? (
-                                    <div className="flex flex-col gap-2">
-                                        <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', margin: 0 }}>Choisissez un salon pour suivre la progression :</p>
-                                        <button onClick={() => handleLinkSalon('')} className="btn btn-sm btn-ghost text-secondary" style={{ justifyContent: 'flex-start', border: '1px solid var(--color-border)', fontSize: '0.82rem' }}>✕ Aucun salon</button>
-                                        {myObjectives.map(o => (
-                                            <button key={o.id} onClick={() => handleLinkSalon(o.id)} className="btn btn-sm"
-                                                style={{ justifyContent: 'flex-start', fontSize: '0.82rem', textAlign: 'left', background: pair.objective_id === o.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', border: pair.objective_id === o.id ? '1px solid rgba(99,102,241,0.4)' : '1px solid var(--color-border)', color: pair.objective_id === o.id ? 'var(--color-primary)' : 'inherit' }}>
-                                                {o.title}
-                                            </button>
-                                        ))}
-                                    </div>
-                                ) : objective ? (
-                                    <Link href={`/objective/${objective.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{objective.title}</div>
-                                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>Objectif : {objective.target_hours}h</div>
-                                        </div>
-                                        <ExternalLink size={14} style={{ opacity: 0.4, flexShrink: 0 }} />
-                                    </Link>
-                                ) : (
-                                    <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
-                                        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', margin: 0 }}>Aucun salon lié</p>
-                                        <button onClick={() => setEditingSalon(true)} style={{ marginTop: '6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--color-primary)' }}>+ Lier un salon →</button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── TAB: ÉTAPES ── */}
-                    {activeTab === 'etapes' && (
-                        <div className="fade-enter">
-                            {/* Progress bar */}
+                            ) : (() => {
+                                const days = getDaysSince(partnerPresence?.last_seen);
+                                if (days === null) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.3)' }}>Activité inconnue</span>;
+                                if (days === 0) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>Vu aujourd'hui</span>;
+                                if (days === 1) return <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' }}>Vu hier</span>;
+                                return <span style={{ fontSize: '0.78rem', color: '#fbbf24' }}><AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />Inactif depuis {days}j</span>;
+                            })()}
+                            <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
+                                {pair.created_at?.toDate ? pair.created_at.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                            </span>
                             {totalMilestones > 0 && (
-                                <div className="card card-glass mb-4" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.04)' }}>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                                            <Flag size={14} className="inline mr-2" style={{ color: 'var(--color-primary)' }} />
-                                            Progression des étapes
-                                        </span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: completedMilestones === totalMilestones ? '#10b981' : 'var(--color-primary)' }}>
-                                            {completedMilestones}/{totalMilestones}
-                                        </span>
+                                <>
+                                    <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                                    <span style={{ fontSize: '0.75rem', color: completedMilestones === totalMilestones ? '#10b981' : 'rgba(255,255,255,0.35)' }}>
+                                        {completedMilestones}/{totalMilestones} étapes
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                        {weeklyGoal > 0 && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 8, background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.2)' }}>
+                                <Target size={12} style={{ color: '#f59e0b' }} />
+                                <span className="ad-mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f59e0b' }}>{weeklyGoal}h</span>
+                                <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)' }}>/ {pair.goal_frequency === 'daily' ? 'jour' : pair.goal_frequency === 'monthly' ? 'mois' : 'semaine'}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexShrink: 0 }}>
+                        <button onClick={handleNudge} disabled={nudging || nudgeSent}
+                            style={{ padding: '9px 14px', borderRadius: 11, border: `1px solid ${nudgeSent ? 'rgba(16,185,129,0.3)' : 'rgba(217,119,6,0.25)'}`, background: nudgeSent ? 'rgba(16,185,129,0.1)' : 'rgba(217,119,6,0.08)', color: nudgeSent ? '#10b981' : '#f59e0b', fontFamily: 'DM Sans, system-ui', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.2s' }}>
+                            {nudgeSent ? <><CheckCircle size={13} /> Envoyé</> : <><Zap size={13} /> Nudge</>}
+                        </button>
+
+                        {/* Settings */}
+                        <div style={{ position: 'relative' }} ref={settingsPanelRef}>
+                            <button onClick={() => setShowSettingsPanel(v => !v)}
+                                style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${showSettingsPanel ? 'rgba(217,119,6,0.4)' : 'rgba(255,255,255,0.09)'}`, background: showSettingsPanel ? 'rgba(217,119,6,0.12)' : 'rgba(255,255,255,0.04)', color: showSettingsPanel ? '#f59e0b' : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                <Settings2 size={15} />
+                            </button>
+                            {showSettingsPanel && (
+                                <div style={{ position: 'absolute', top: 42, right: 0, zIndex: 200, width: 310, borderRadius: 18, background: 'rgba(14,14,20,0.99)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 60px rgba(0,0,0,0.7)', padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'ad-in 0.15s ease' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ fontFamily: 'Outfit, system-ui', fontWeight: 700, fontSize: '0.88rem', color: '#f0f0f5', display: 'flex', alignItems: 'center', gap: 7 }}>
+                                            <Settings2 size={14} style={{ color: '#f59e0b' }} /> Paramètres
+                                        </div>
+                                        <button onClick={() => setShowSettingsPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 2, display: 'flex' }}><X size={14} /></button>
                                     </div>
-                                    <div style={{ height: '8px', borderRadius: '6px', background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: `${(completedMilestones / totalMilestones) * 100}%`, borderRadius: '6px', background: completedMilestones === totalMilestones ? 'linear-gradient(90deg,#10b981,#34d399)' : 'linear-gradient(90deg,var(--color-primary),var(--color-secondary))', transition: 'width 0.5s ease' }} />
+
+                                    <div>
+                                        <span className="ad-label">Titre</span>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <input className="ad-input" placeholder={partner.full_name} value={titleInput} onChange={e => setTitleInput(e.target.value)} style={{ height: 36, padding: '0 10px' }} />
+                                            <button onClick={handleSaveTitle} disabled={savingTitle || titleInput.trim() === (pair.title || '')}
+                                                style={{ height: 36, padding: '0 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 700, background: 'rgba(217,119,6,0.2)', color: '#f59e0b', border: '1px solid rgba(217,119,6,0.3)', cursor: 'pointer', flexShrink: 0, opacity: titleInput.trim() === (pair.title || '') ? 0.4 : 1, fontFamily: 'DM Sans, system-ui' }}>
+                                                {savingTitle ? '...' : 'OK'}
+                                            </button>
+                                        </div>
                                     </div>
-                                    {completedMilestones === totalMilestones && totalMilestones > 0 && (
-                                        <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '8px', fontWeight: 600 }}>🎉 Toutes les étapes sont complétées !</div>
+
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <span className="ad-label" style={{ margin: 0 }}>Objectif hebdomadaire</span>
+                                            <button className="ad-toggle" style={{ background: hoursEnabled ? 'rgba(217,119,6,0.7)' : 'rgba(255,255,255,0.12)' }}
+                                                onClick={() => { const next = !hoursEnabled; setHoursEnabled(next); if (!next) { updateDoc(doc(db, 'accountability_pairs', id as string), { weekly_hours_goal: 0 }); setPair((p: any) => ({ ...p, weekly_hours_goal: 0 })); } }}>
+                                                <span className="ad-toggle-thumb" style={{ left: hoursEnabled ? '19px' : '2px' }} />
+                                            </button>
+                                        </div>
+                                        {hoursEnabled && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <input type="number" min="1" max="500" className="ad-input" value={goalInput} onChange={e => setGoalInput(e.target.value)} style={{ width: 64, textAlign: 'center', height: 36, padding: '0 8px' }} />
+                                                <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)' }}>h /</span>
+                                                <select value={goalFreq} onChange={e => setGoalFreq(e.target.value)} style={{ height: 36, fontSize: '0.85rem', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, padding: '0 8px', color: '#fff', fontFamily: 'DM Sans, system-ui' }}>
+                                                    <option value="daily">jour</option>
+                                                    <option value="weekly">semaine</option>
+                                                    <option value="monthly">mois</option>
+                                                </select>
+                                                <button onClick={() => { handleSaveGoal(); }} disabled={goalInput === String(pair.weekly_hours_goal ?? 0) && goalFreq === (pair.goal_frequency || 'weekly')}
+                                                    style={{ marginLeft: 'auto', height: 36, padding: '0 12px', borderRadius: 9, fontSize: '0.78rem', fontWeight: 700, background: 'rgba(217,119,6,0.2)', color: '#f59e0b', border: '1px solid rgba(217,119,6,0.3)', cursor: 'pointer', opacity: (goalInput === String(pair.weekly_hours_goal ?? 0) && goalFreq === (pair.goal_frequency || 'weekly')) ? 0.4 : 1, fontFamily: 'DM Sans, system-ui' }}>OK</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <span className="ad-label">Salon lié</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <button onClick={() => handleLinkSalon('')} style={{ textAlign: 'left', padding: '7px 10px', borderRadius: 9, fontSize: '0.82rem', background: !pair.objective_id ? 'rgba(255,255,255,0.08)' : 'transparent', border: !pair.objective_id ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent', color: !pair.objective_id ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: 'DM Sans, system-ui' }}>
+                                                ✕ Aucun salon
+                                            </button>
+                                            {myObjectives.map(o => (
+                                                <button key={o.id} onClick={() => handleLinkSalon(o.id)} style={{ textAlign: 'left', padding: '7px 10px', borderRadius: 9, fontSize: '0.82rem', background: pair.objective_id === o.id ? 'rgba(217,119,6,0.12)' : 'transparent', border: pair.objective_id === o.id ? '1px solid rgba(217,119,6,0.35)' : '1px solid transparent', color: pair.objective_id === o.id ? '#f59e0b' : 'rgba(255,255,255,0.55)', cursor: 'pointer', fontFamily: 'DM Sans, system-ui' }}>
+                                                    {o.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Leave */}
+                        {!confirmLeave ? (
+                            <button onClick={() => setConfirmLeave(true)} className="ad-btn-ghost" style={{ color: 'rgba(239,68,68,0.7)', borderColor: 'rgba(239,68,68,0.2)' }}>
+                                <X size={13} /> Quitter
+                            </button>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '4px 10px' }}>
+                                <span style={{ fontSize: '0.76rem', color: '#f87171', whiteSpace: 'nowrap' }}>Quitter ?</span>
+                                <button onClick={handleLeave} disabled={leaving} style={{ padding: '4px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, system-ui' }}>
+                                    {leaving ? '...' : 'Confirmer'}
+                                </button>
+                                <button onClick={() => setConfirmLeave(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 2, display: 'flex' }}>
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Two-column layout ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '1.5rem', alignItems: 'start' }}>
+
+                    {/* LEFT: tabs + content */}
+                    <div>
+                        {/* Tab bar */}
+                        <div className="ad-tabbar">
+                            {TABS.map(t => (
+                                <button key={t.key} onClick={() => setActiveTab(t.key)}
+                                    className={`ad-tab ${activeTab === t.key ? 'ad-tab-active' : 'ad-tab-inactive'}`}>
+                                    {t.icon} {t.label}
+                                    {t.key === 'coworking' && (amInSession || partnerInSession) && (
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', marginLeft: 2 }} />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* ── TAB: RÉSUMÉ ── */}
+                        {activeTab === 'resume' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'ad-in 0.3s ease' }}>
+                                {/* Goal card */}
+                                <div className="ad-card" style={{ borderColor: 'rgba(217,119,6,0.2)', background: 'rgba(217,119,6,0.04)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Target size={16} style={{ color: '#f59e0b' }} />
+                                            <span className="ad-heading" style={{ fontSize: '0.88rem', color: '#f0f0f5' }}>Objectif commun</span>
+                                        </div>
+                                        <button onClick={() => setShowSettingsPanel(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '2px 6px', display: 'flex' }}><Settings2 size={13} /></button>
+                                    </div>
+                                    {weeklyGoal > 0 ? (
+                                        <>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                                                <span className="ad-mono" style={{ fontSize: '2.8rem', fontWeight: 700, color: '#f59e0b', lineHeight: 1 }}>{weeklyGoal}</span>
+                                                <span style={{ fontSize: '1rem', color: 'rgba(217,119,6,0.7)', fontWeight: 600 }}>h</span>
+                                                <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.35)', marginLeft: 4 }}>/ {pair.goal_frequency === 'daily' ? 'jour' : pair.goal_frequency === 'monthly' ? 'mois' : 'semaine'}</span>
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(255,255,255,0.3)' }}>Objectif partagé · mis à jour par les deux partenaires</p>
+                                        </>
+                                    ) : (
+                                        <div style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>Pas d'objectif fixé</div>
                                     )}
                                 </div>
-                            )}
 
-                            <div className="flex justify-between items-center mb-4">
-                                <p className="text-secondary m-0 text-sm">Étapes et jalons vers votre objectif commun</p>
-                                <button onClick={() => setShowMilestoneForm(v => !v)} className="btn btn-sm btn-primary" style={{ gap: '5px' }}>
-                                    {showMilestoneForm ? <><X size={13} /> Annuler</> : <><Plus size={13} /> Ajouter</>}
-                                </button>
-                            </div>
-
-                            {showMilestoneForm && (
-                                <form onSubmit={handleAddMilestone} className="card card-glass mb-4 fade-enter" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <input className="input" placeholder="Nom de l'étape *" value={milestoneTitle} onChange={e => setMilestoneTitle(e.target.value)} required />
-                                    <div>
-                                        <label style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Échéance (optionnel)</label>
-                                        <input type="date" className="input" value={milestoneDue} onChange={e => setMilestoneDue(e.target.value)} />
-                                    </div>
-                                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingMilestone || !milestoneTitle.trim()}>
-                                        {savingMilestone ? 'Enregistrement...' : '✓ Ajouter l\'étape'}
-                                    </button>
-                                </form>
-                            )}
-
-                            {milestones.length === 0 ? (
-                                <div className="card card-glass text-center py-12">
-                                    <CheckSquare size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.15 }} />
-                                    <p style={{ opacity: 0.4, fontSize: '0.9rem' }}>Aucune étape définie</p>
-                                    <p style={{ opacity: 0.3, fontSize: '0.8rem', margin: '4px 0 0' }}>Décomposez votre objectif en étapes concrètes</p>
-                                    <button onClick={() => setShowMilestoneForm(true)} style={{ marginTop: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--color-primary)' }}>+ Ajouter la première →</button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {milestones.map((m, idx) => {
-                                        const due = m.due_date?.toDate ? m.due_date.toDate() : m.due_date ? new Date(m.due_date) : null;
-                                        const isOverdue = due && !m.completed && due < new Date();
-                                        return (
-                                            <div key={m.id} className="card card-glass fade-enter" style={{ padding: '0.9rem 1.1rem', display: 'flex', gap: '0.9rem', alignItems: 'flex-start', borderLeft: `3px solid ${m.completed ? '#10b981' : isOverdue ? '#ef4444' : 'rgba(255,255,255,0.08)'}`, opacity: m.completed ? 0.75 : 1, transition: 'opacity 0.2s' }}>
-                                                <button onClick={() => handleToggleMilestone(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', flexShrink: 0, marginTop: '1px', color: m.completed ? '#10b981' : 'rgba(255,255,255,0.3)' }}>
-                                                    {m.completed ? <CheckSquare size={18} /> : <Square size={18} />}
-                                                </button>
-                                                <div className="flex-1 min-w-0">
-                                                    <div style={{ fontWeight: 600, fontSize: '0.92rem', textDecoration: m.completed ? 'line-through' : 'none', color: m.completed ? 'rgba(255,255,255,0.45)' : 'inherit' }}>
-                                                        {idx + 1}. {m.title}
-                                                    </div>
-                                                    <div className="flex gap-3 mt-1" style={{ flexWrap: 'wrap' }}>
-                                                        {due && (
-                                                            <span style={{ fontSize: '0.72rem', color: isOverdue ? '#ef4444' : 'rgba(255,255,255,0.35)' }}>
-                                                                {isOverdue ? '⚠ ' : '📅 '}Échéance {due.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                                                            </span>
-                                                        )}
-                                                        {m.completed && m.completed_by_name && (
-                                                            <span style={{ fontSize: '0.72rem', color: '#10b981' }}>✓ Complété par {m.completed_by_name}</span>
-                                                        )}
-                                                        {!m.completed && (
-                                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.28)' }}>par {m.created_by_name}</span>
-                                                        )}
-                                                    </div>
+                                {/* Progress if salon linked */}
+                                {objective && (
+                                    <div className="ad-card">
+                                        <div className="ad-heading" style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.7)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span>📊</span> Progression dans le salon
+                                        </div>
+                                        {[
+                                            { label: 'Vous', val: myProgress, color: '#d97706' },
+                                            { label: partner.full_name, val: partnerProgress, color: '#10b981' },
+                                        ].map(({ label, val, color }) => (
+                                            <div key={label} style={{ marginBottom: 14 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{label}</span>
+                                                    <span className="ad-mono" style={{ fontSize: '0.82rem', fontWeight: 700, color }}>{fmtHours(val)} <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/ {targetHours}h</span></span>
                                                 </div>
-                                                <button onClick={() => handleDeleteMilestone(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.25, padding: '2px', flexShrink: 0 }}>
-                                                    <Trash2 size={13} />
-                                                </button>
+                                                <div className="ad-pbar">
+                                                    <div className="ad-pbar-fill" style={{ width: `${Math.min(100, (val / (targetHours || 1)) * 100)}%`, background: color }} />
+                                                </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ── TAB: RESSOURCES ── */}
-                    {activeTab === 'ressources' && (
-                        <div className="fade-enter">
-                            <div className="flex justify-between items-center mb-4">
-                                <p className="text-secondary m-0 text-sm">Liens et notes partagés entre vous deux</p>
-                                <button onClick={() => setShowResForm(v => !v)} className="btn btn-sm btn-primary" style={{ gap: '5px' }}>
-                                    {showResForm ? <><X size={13} /> Annuler</> : <><Plus size={13} /> Ajouter</>}
-                                </button>
-                            </div>
-
-                            {showResForm && (
-                                <form onSubmit={handleAddResource} className="card card-glass mb-4 fade-enter" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <div className="flex gap-2">
-                                        {(['link', 'note'] as const).map(t => (
-                                            <button key={t} type="button" onClick={() => setResType(t)}
-                                                style={{ flex: 1, padding: '7px', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: resType === t ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', color: resType === t ? 'var(--color-primary)' : 'rgba(255,255,255,0.5)', boxShadow: resType === t ? '0 0 0 1px rgba(99,102,241,0.4)' : 'none', transition: 'all 0.2s' }}>
-                                                {t === 'link' ? <><LinkIcon size={13} /> Lien</> : <><FileText size={13} /> Note</>}
-                                            </button>
                                         ))}
                                     </div>
-                                    <input className="input" placeholder="Titre *" value={resTitle} onChange={e => setResTitle(e.target.value)} required />
-                                    {resType === 'link'
-                                        ? <input className="input" placeholder="URL (https://...)" value={resUrl} onChange={e => setResUrl(e.target.value)} type="url" />
-                                        : <textarea className="input" rows={3} placeholder="Contenu de la note..." value={resNote} onChange={e => setResNote(e.target.value)} />
-                                    }
-                                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingRes || !resTitle.trim()}>
-                                        {savingRes ? 'Enregistrement...' : '✓ Ajouter'}
-                                    </button>
-                                </form>
-                            )}
+                                )}
 
-                            {resources.length === 0 ? (
-                                <div className="card card-glass text-center py-12">
-                                    <LinkIcon size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.15 }} />
-                                    <p style={{ opacity: 0.4, fontSize: '0.9rem' }}>Aucune ressource partagée</p>
-                                    <button onClick={() => setShowResForm(true)} style={{ marginTop: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--color-primary)' }}>+ Ajouter la première →</button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-3">
-                                    {resources.map(r => (
-                                        <div key={r.id} className="card card-glass fade-enter" style={{ padding: '1rem 1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                                            <div style={{ width: 32, height: 32, borderRadius: '9px', background: r.type === 'link' ? 'rgba(99,102,241,0.15)' : 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
-                                                {r.type === 'link' ? <LinkIcon size={14} style={{ color: '#818cf8' }} /> : <FileText size={14} style={{ color: '#10b981' }} />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{r.title}</div>
-                                                {r.type === 'link' && r.url && (
-                                                    <a href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: '#818cf8', wordBreak: 'break-all', textDecoration: 'none' }}>{r.url}</a>
-                                                )}
-                                                {r.type === 'note' && r.content && (
-                                                    <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', margin: '4px 0 0', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{r.content}</p>
-                                                )}
-                                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>par {r.added_by_name} · {r.created_at?.toDate ? r.created_at.toDate().toLocaleDateString('fr-FR') : ''}</div>
-                                            </div>
-                                            {r.added_by === user?.uid && (
-                                                <button onClick={() => handleDeleteResource(r.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.3, padding: '2px', flexShrink: 0 }}>
-                                                    <Trash2 size={13} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ── TAB: AGENDA ── */}
-                    {activeTab === 'agenda' && (
-                        <div className="fade-enter">
-                            <div className="flex justify-between items-center mb-4">
-                                <p className="text-secondary m-0 text-sm">Sessions de travail planifiées ensemble</p>
-                                <button onClick={() => setShowSessionForm(v => !v)} className="btn btn-sm btn-primary" style={{ gap: '5px' }}>
-                                    {showSessionForm ? <><X size={13} /> Annuler</> : <><Plus size={13} /> Planifier</>}
-                                </button>
-                            </div>
-
-                            {showSessionForm && (
-                                <form onSubmit={handleAddSession} className="card card-glass mb-4 fade-enter" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <input className="input" placeholder="Titre de la session *" value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} required />
-                                    <div>
-                                        <label style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>Date et heure *</label>
-                                        <input type="datetime-local" className="input" value={sessionDate} onChange={e => setSessionDate(e.target.value)} required />
+                                {/* Linked salon */}
+                                <div className="ad-card">
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span className="ad-heading" style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.7)' }}>🔗 Salon lié</span>
+                                        <button onClick={() => setEditingSalon(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '2px 6px', display: 'flex' }}><Edit3 size={13} /></button>
                                     </div>
-                                    <textarea className="input" rows={2} placeholder="Note (optionnel)" value={sessionNote} onChange={e => setSessionNote(e.target.value)} />
-                                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingSession || !sessionTitle.trim() || !sessionDate}>
-                                        {savingSession ? 'Enregistrement...' : '📅 Planifier la session'}
-                                    </button>
-                                </form>
-                            )}
-
-                            {sessions.length === 0 ? (
-                                <div className="card card-glass text-center py-12">
-                                    <Calendar size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.15 }} />
-                                    <p style={{ opacity: 0.4, fontSize: '0.9rem' }}>Aucune session planifiée</p>
-                                    <button onClick={() => setShowSessionForm(true)} style={{ marginTop: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--color-primary)' }}>+ Planifier →</button>
+                                    {editingSalon ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <button onClick={() => handleLinkSalon('')} className="ad-btn-ghost" style={{ fontSize: '0.82rem' }}>✕ Aucun salon</button>
+                                            {myObjectives.map(o => (
+                                                <button key={o.id} onClick={() => handleLinkSalon(o.id)} className="ad-btn-ghost"
+                                                    style={{ fontSize: '0.82rem', borderColor: pair.objective_id === o.id ? 'rgba(217,119,6,0.4)' : undefined, color: pair.objective_id === o.id ? '#f59e0b' : undefined }}>
+                                                    {o.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : objective ? (
+                                        <Link href={`/objective/${objective.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 12, background: 'rgba(217,119,6,0.07)', border: '1px solid rgba(217,119,6,0.2)' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#f0f0f5' }}>{objective.title}</div>
+                                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)', marginTop: 2 }}>Objectif : {objective.target_hours}h</div>
+                                            </div>
+                                            <ExternalLink size={13} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                                        </Link>
+                                    ) : (
+                                        <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 11, border: '1px dashed rgba(255,255,255,0.09)', textAlign: 'center' }}>
+                                            <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', margin: '0 0 8px' }}>Aucun salon lié</p>
+                                            <button onClick={() => setEditingSalon(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#f59e0b' }}>+ Lier un salon →</button>
+                                        </div>
+                                    )}
                                 </div>
-                            ) : (
-                                <div className="flex flex-col gap-3">
-                                    {sessions.map(s => {
-                                        const date = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
-                                        const isPast = date < new Date();
-                                        const attending = s.attendees?.includes(user!.uid);
-                                        const dateStr = date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-                                        return (
-                                            <div key={s.id} className="card card-glass fade-enter" style={{ padding: '1rem 1.25rem', borderLeft: '3px solid var(--color-primary)', opacity: isPast ? 0.6 : 1 }}>
-                                                <div className="flex justify-between items-start gap-3">
-                                                    <div className="flex-1 min-w-0">
-                                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{s.title}</div>
-                                                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginTop: '3px' }}>📅 {dateStr}</div>
-                                                        {s.note && <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.55)', margin: '6px 0 0', lineHeight: '1.4' }}>{s.note}</p>}
-                                                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
-                                                            {s.attendees?.length ?? 0} participant{s.attendees?.length !== 1 ? 's' : ''} · par {s.creator_name}
+                            </div>
+                        )}
+
+                        {/* ── TAB: ÉTAPES ── */}
+                        {activeTab === 'etapes' && (
+                            <div style={{ animation: 'ad-in 0.3s ease' }}>
+                                {totalMilestones > 0 && (
+                                    <div className="ad-card" style={{ marginBottom: 14, borderColor: 'rgba(217,119,6,0.2)', background: 'rgba(217,119,6,0.04)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}>
+                                                <Flag size={14} style={{ color: '#f59e0b' }} /> Progression
+                                            </span>
+                                            <span className="ad-mono" style={{ fontSize: '0.9rem', fontWeight: 800, color: completedMilestones === totalMilestones ? '#10b981' : '#f59e0b' }}>
+                                                {completedMilestones}/{totalMilestones}
+                                            </span>
+                                        </div>
+                                        <div className="ad-pbar">
+                                            <div className="ad-pbar-fill" style={{ width: `${(completedMilestones / totalMilestones) * 100}%`, background: completedMilestones === totalMilestones ? '#10b981' : 'linear-gradient(90deg, #d97706, #f59e0b)' }} />
+                                        </div>
+                                        {completedMilestones === totalMilestones && <p style={{ fontSize: '0.8rem', color: '#10b981', margin: '10px 0 0', fontWeight: 600 }}>🎉 Toutes les étapes complétées !</p>}
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255,255,255,0.38)' }}>Jalons vers votre objectif commun</p>
+                                    <button onClick={() => setShowMilestoneForm(v => !v)} className="ad-btn-amber" style={{ padding: '7px 14px', fontSize: '0.8rem' }}>
+                                        {showMilestoneForm ? <><X size={12} /> Annuler</> : <><Plus size={12} /> Ajouter</>}
+                                    </button>
+                                </div>
+                                {showMilestoneForm && (
+                                    <form onSubmit={handleAddMilestone} className="ad-card" style={{ marginBottom: 14, borderColor: 'rgba(217,119,6,0.3)', background: 'rgba(217,119,6,0.04)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <input className="ad-input" placeholder="Nom de l'étape *" value={milestoneTitle} onChange={e => setMilestoneTitle(e.target.value)} required />
+                                        <div>
+                                            <span className="ad-label">Échéance (optionnel)</span>
+                                            <input type="date" className="ad-input" value={milestoneDue} onChange={e => setMilestoneDue(e.target.value)} />
+                                        </div>
+                                        <button type="submit" className="ad-btn-amber" disabled={savingMilestone || !milestoneTitle.trim()} style={{ alignSelf: 'flex-end' }}>
+                                            {savingMilestone ? 'Enregistrement...' : '✓ Ajouter l\'étape'}
+                                        </button>
+                                    </form>
+                                )}
+                                {milestones.length === 0 ? (
+                                    <div style={{ padding: '3rem 2rem', textAlign: 'center', borderRadius: 18, border: '1px dashed rgba(255,255,255,0.08)' }}>
+                                        <CheckSquare size={32} style={{ margin: '0 auto 12px', color: 'rgba(255,255,255,0.1)', display: 'block' }} />
+                                        <p style={{ opacity: 0.35, fontSize: '0.88rem', margin: '0 0 10px' }}>Aucune étape définie</p>
+                                        <button onClick={() => setShowMilestoneForm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#f59e0b' }}>+ Ajouter →</button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {milestones.map((m, idx) => {
+                                            const due = m.due_date?.toDate ? m.due_date.toDate() : m.due_date ? new Date(m.due_date) : null;
+                                            const isOverdue = due && !m.completed && due < new Date();
+                                            return (
+                                                <div key={m.id} className="ad-milestone" style={{ borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: m.completed ? '#10b981' : isOverdue ? '#ef4444' : 'rgba(217,119,6,0.3)', opacity: m.completed ? 0.7 : 1, animationDelay: `${idx * 0.05}s` }}>
+                                                    <button onClick={() => handleToggleMilestone(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: m.completed ? '#10b981' : 'rgba(255,255,255,0.3)', flexShrink: 0, marginTop: 1, display: 'flex' }}>
+                                                        {m.completed ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                    </button>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 600, fontSize: '0.9rem', textDecoration: m.completed ? 'line-through' : 'none', color: m.completed ? 'rgba(255,255,255,0.4)' : '#e8e8ef' }}>
+                                                            {idx + 1}. {m.title}
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
+                                                            {due && <span style={{ fontSize: '0.72rem', color: isOverdue ? '#ef4444' : 'rgba(255,255,255,0.3)' }}>{isOverdue ? '⚠ ' : '📅 '}{due.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>}
+                                                            {m.completed && m.completed_by_name && <span style={{ fontSize: '0.72rem', color: '#10b981' }}>✓ {m.completed_by_name}</span>}
                                                         </div>
                                                     </div>
-                                                    <div className="flex flex-col gap-2 items-end flex-shrink-0">
-                                                        {!isPast && (
-                                                            <button onClick={() => handleToggleAttendee(s)} className={`btn btn-sm ${attending ? 'btn-ghost text-secondary' : 'btn-primary'}`} style={{ fontSize: '0.78rem' }}>
-                                                                {attending ? 'Se désinscrire' : '✓ Participer'}
-                                                            </button>
+                                                    <button onClick={() => handleDeleteMilestone(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.2)', padding: 2, flexShrink: 0, display: 'flex' }}>
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── TAB: RESSOURCES ── */}
+                        {activeTab === 'ressources' && (
+                            <div>
+                                <style>{`
+                                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+                                    .rc-wrap { font-family: 'DM Sans', system-ui; }
+                                    .rc-section-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+                                    .rc-section-title { display: flex; align-items: center; gap: 9px; font-family: 'Outfit', system-ui; font-size: 1.05rem; font-weight: 700; color: #eeeef0; margin: 0; letter-spacing: -0.015em; }
+                                    .rc-section-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                                    .rc-section-sub { font-size: 0.77rem; color: rgba(255,255,255,0.32); margin: 4px 0 0 41px; }
+                                    .rc-btn-ghost { padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+                                    .rc-btn-ghost:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+                                    .rc-form-panel { border-radius: 15px; padding: 18px; background: rgba(12,12,16,0.85); border: 1px solid rgba(99,102,241,0.28); margin-bottom: 18px; animation: rc-in 0.25s cubic-bezier(0.22,1,0.36,1); }
+                                    .rc-type-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: rgba(255,255,255,0.03); border-radius: 10px; padding: 4px; margin-bottom: 14px; }
+                                    .rc-type-tab { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-radius: 7px; border: none; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.18s; font-family: 'DM Sans', system-ui; }
+                                    .rc-type-tab.active { background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.35); }
+                                    .rc-type-tab.inactive { background: transparent; color: rgba(255,255,255,0.4); }
+                                    .rc-type-tab.inactive:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
+                                    .rc-input { width: 100%; padding: 10px 13px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; color: #eeeeef; font-size: 0.88rem; font-family: 'DM Sans', system-ui; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+                                    .rc-input:focus { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.04); }
+                                    .rc-input::placeholder { color: rgba(255,255,255,0.2); }
+                                    .rc-form-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+                                    .rc-btn-cancel { padding: 8px 16px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); font-family: 'DM Sans', system-ui; transition: all 0.2s; }
+                                    .rc-btn-cancel:hover { background: rgba(255,255,255,0.08); }
+                                    .rc-btn-add { padding: 8px 20px; border-radius: 9px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; box-shadow: 0 2px 10px rgba(99,102,241,0.35); }
+                                    .rc-btn-add:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.52); transform: translateY(-1px); }
+                                    .rc-btn-add:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+                                    .rc-files-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+                                    .rc-file-card { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 13px; background: rgba(18,18,24,0.7); border: 1px solid rgba(255,255,255,0.06); transition: all 0.2s; animation: rc-in 0.3s cubic-bezier(0.22,1,0.36,1); }
+                                    .rc-file-card:hover { border-color: rgba(255,255,255,0.11); box-shadow: 0 4px 16px rgba(0,0,0,0.28); }
+                                    .rc-file-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                                    .rc-file-info { flex: 1; min-width: 0; }
+                                    .rc-file-name { font-size: 0.88rem; font-weight: 600; color: #eeeef0; margin-bottom: 3px; }
+                                    .rc-file-meta { font-size: 0.72rem; color: rgba(255,255,255,0.32); }
+                                    .rc-file-actions { display: flex; gap: 4px; flex-shrink: 0; }
+                                    .rc-icon-btn { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.38); text-decoration: none; }
+                                    .rc-icon-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); }
+                                    .rc-icon-btn.del:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); color: #f87171; }
+                                    .rc-empty { border-radius: 14px; padding: 32px 20px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.07); text-align: center; }
+                                    @keyframes rc-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+                                `}</style>
+
+                                <div className="rc-wrap">
+                                    <div className="rc-section-head">
+                                        <div>
+                                            <h3 className="rc-section-title">
+                                                <span className="rc-section-icon" style={{ background: 'rgba(99,102,241,0.13)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8' }}>
+                                                    <LinkIcon size={15} />
+                                                </span>
+                                                Ressources partagées
+                                            </h3>
+                                            <p className="rc-section-sub">Liens et notes partagés entre vous deux</p>
+                                        </div>
+                                        <button className="rc-btn-ghost" onClick={() => setShowResForm(v => !v)}>
+                                            {showResForm ? <><X size={13} /> Annuler</> : <><Plus size={13} /> Ajouter</>}
+                                        </button>
+                                    </div>
+
+                                    {showResForm && (
+                                        <form onSubmit={handleAddResource} className="rc-form-panel">
+                                            <div className="rc-type-tabs">
+                                                {(['link', 'note'] as const).map(tp => (
+                                                    <button key={tp} type="button"
+                                                        className={`rc-type-tab ${resType === tp ? 'active' : 'inactive'}`}
+                                                        onClick={() => setResType(tp)}>
+                                                        {tp === 'link' ? <><LinkIcon size={13} /> Lien</> : <><FileText size={13} /> Note</>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <input className="rc-input" placeholder="Titre *" value={resTitle} onChange={e => setResTitle(e.target.value)} required style={{ marginBottom: 10 }} />
+                                            {resType === 'link'
+                                                ? <input className="rc-input" placeholder="URL (https://...)" value={resUrl} onChange={e => setResUrl(e.target.value)} type="url" />
+                                                : <textarea className="rc-input" rows={3} placeholder="Contenu de la note..." value={resNote} onChange={e => setResNote(e.target.value)} style={{ resize: 'none' }} />}
+                                            <div className="rc-form-footer" style={{ marginTop: 12 }}>
+                                                <button type="button" className="rc-btn-cancel" onClick={() => setShowResForm(false)}>Annuler</button>
+                                                <button type="submit" className="rc-btn-add" disabled={savingRes || !resTitle.trim()}>
+                                                    {savingRes ? 'Enregistrement...' : '✓ Ajouter'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    )}
+
+                                    {resources.length === 0 ? (
+                                        <div className="rc-empty">
+                                            <LinkIcon size={28} style={{ margin: '0 auto 10px', color: 'rgba(255,255,255,0.12)', display: 'block' }} />
+                                            <p style={{ opacity: 0.35, fontSize: '0.85rem', margin: '0 0 10px', fontFamily: 'DM Sans, system-ui' }}>Aucune ressource partagée</p>
+                                            <button onClick={() => setShowResForm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#818cf8', fontFamily: 'DM Sans, system-ui' }}>+ Ajouter →</button>
+                                        </div>
+                                    ) : (
+                                        <div className="rc-files-grid">
+                                            {resources.map(r => (
+                                                <div key={r.id} className="rc-file-card">
+                                                    <div className="rc-file-icon" style={{ background: r.type === 'link' ? 'rgba(99,102,241,0.13)' : 'rgba(16,185,129,0.12)', border: `1px solid ${r.type === 'link' ? 'rgba(99,102,241,0.25)' : 'rgba(16,185,129,0.22)'}` }}>
+                                                        {r.type === 'link'
+                                                            ? <LinkIcon size={15} style={{ color: '#818cf8' }} />
+                                                            : <FileText size={15} style={{ color: '#10b981' }} />}
+                                                    </div>
+                                                    <div className="rc-file-info">
+                                                        <div className="rc-file-name">{r.title}</div>
+                                                        {r.type === 'link' && r.url && (
+                                                            <a href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.73rem', color: '#818cf8', wordBreak: 'break-all', textDecoration: 'none' }}>{r.url}</a>
                                                         )}
-                                                        {s.creator_id === user?.uid && (
-                                                            <button onClick={() => handleDeleteSession(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.3, padding: '2px' }}>
+                                                        {r.type === 'note' && r.content && (
+                                                            <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', margin: '3px 0 0', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{r.content}</p>
+                                                        )}
+                                                        <div className="rc-file-meta" style={{ marginTop: 5 }}>par {r.added_by_name} · {r.created_at?.toDate ? r.created_at.toDate().toLocaleDateString('fr-FR') : ''}</div>
+                                                    </div>
+                                                    <div className="rc-file-actions">
+                                                        {r.type === 'link' && r.url && (
+                                                            <a href={r.url} target="_blank" rel="noreferrer" className="rc-icon-btn" title="Ouvrir">
+                                                                <ExternalLink size={13} />
+                                                            </a>
+                                                        )}
+                                                        {r.added_by === user?.uid && (
+                                                            <button onClick={() => handleDeleteResource(r.id)} className="rc-icon-btn del" title="Supprimer">
                                                                 <Trash2 size={13} />
                                                             </button>
                                                         )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ── TAB: COWORKING ── */}
-                    {activeTab === 'coworking' && (
-                        <div className="fade-enter flex flex-col gap-4">
-                            {/* Join/leave session */}
-                            <div className="card card-glass" style={{ padding: '1.25rem', border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.03)' }}>
-                                <h4 className="flex items-center gap-2 m-0 mb-3" style={{ fontSize: '0.9rem', color: '#10b981' }}>
-                                    <Video size={16} /> Session live
-                                </h4>
-                                <div className="flex items-center gap-3 mb-4">
-                                    {/* Your status */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '12px', background: amInSession ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${amInSession ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}` }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: amInSession ? '#10b981' : 'rgba(255,255,255,0.2)', boxShadow: amInSession ? '0 0 6px rgba(16,185,129,0.6)' : 'none', display: 'inline-block' }} />
-                                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: amInSession ? '#10b981' : 'rgba(255,255,255,0.4)' }}>Vous</span>
-                                    </div>
-                                    <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.2)' }}>·</span>
-                                    {/* Partner status */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '12px', background: partnerInSession ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${partnerInSession ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}` }}>
-                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: partnerInSession ? '#10b981' : 'rgba(255,255,255,0.2)', boxShadow: partnerInSession ? '0 0 6px rgba(16,185,129,0.6)' : 'none', display: 'inline-block' }} />
-                                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: partnerInSession ? '#10b981' : 'rgba(255,255,255,0.4)' }}>{partner.full_name}</span>
-                                    </div>
-                                </div>
-                                {!amInSession ? (
-                                    <button onClick={handleJoinCoworking} className="btn btn-sm w-full" style={{ justifyContent: 'center', background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', gap: '6px' }}>
-                                        <Video size={14} /> Rejoindre la session
-                                    </button>
-                                ) : (
-                                    <button onClick={handleLeaveCoworking} className="btn btn-sm w-full btn-ghost text-secondary" style={{ justifyContent: 'center', border: '1px solid rgba(255,255,255,0.1)', gap: '6px' }}>
-                                        <X size={14} /> Quitter la session
-                                    </button>
-                                )}
-                                {amInSession && partnerInSession && (
-                                    <div style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '10px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.8rem', color: '#10b981', textAlign: 'center' }}>
-                                        ✦ Vous êtes en session ensemble !
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Session focus timer */}
-                            {amInSession && (
-                                <div className="card card-glass" style={{ padding: '1.5rem', border: `1px solid ${timerColor}30`, background: `${timerColor}06` }}>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h4 className="flex items-center gap-2 m-0" style={{ fontSize: '0.9rem', color: timerColor }}>
-                                            ⏱ Session Focus partagée
-                                        </h4>
-                                        <button onClick={() => setShowTimerSettings(v => !v)} title="Régler les durées"
-                                            style={{ background: showTimerSettings ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showTimerSettings ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '8px', color: showTimerSettings ? '#818cf8' : 'rgba(255,255,255,0.35)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                            <Settings2 size={13} />
-                                        </button>
-                                    </div>
-
-                                    {/* Duration settings panel */}
-                                    {showTimerSettings && (
-                                        <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Durées (minutes)</span>
-                                            {(['focus', 'short', 'long'] as const).map(key => (
-                                                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                                                    <span style={{ fontSize: '0.75rem', color: POMODORO_COLORS[key], fontWeight: 700, width: '80px' }}>{POMODORO_LABELS[key]}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                        <button onClick={() => setDraftDurations(d => ({ ...d, [key]: Math.max(1, d[key] - 1) }))}
-                                                            style={{ width: 24, height: 24, borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a1a1aa', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                                                        <input type="text" inputMode="numeric" value={draftDurations[key]}
-                                                            onChange={e => { const n = parseInt(e.target.value.replace(/\D/g, '') || '1'); setDraftDurations(d => ({ ...d, [key]: Math.min(180, Math.max(1, n)) })); }}
-                                                            style={{ width: '44px', textAlign: 'center', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.13)', borderRadius: '6px', color: '#f8f9fa', fontSize: '0.88rem', fontWeight: 700, padding: '4px 2px', outline: 'none' }} />
-                                                        <button onClick={() => setDraftDurations(d => ({ ...d, [key]: Math.min(180, d[key] + 1) }))}
-                                                            style={{ width: 24, height: 24, borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a1a1aa', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                                                    </div>
-                                                </div>
                                             ))}
-                                            <button onClick={handleApplyDurations}
-                                                style={{ marginTop: '2px', padding: '6px', borderRadius: '7px', border: 'none', background: 'rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                                                ✓ Appliquer (synchronisé avec {partner.full_name})
-                                            </button>
                                         </div>
                                     )}
-
-                                    {/* Mode selector */}
-                                    <div className="flex gap-2 mb-5">
-                                        {Object.entries(POMODORO_LABELS).map(([key, label]) => (
-                                            <button key={key} onClick={() => handleSwitchMode(key)} type="button"
-                                                style={{ flex: 1, padding: '6px 4px', borderRadius: '10px', fontSize: '0.76rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: viewMode === key ? `${POMODORO_COLORS[key]}22` : 'rgba(255,255,255,0.04)', color: viewMode === key ? POMODORO_COLORS[key] : 'rgba(255,255,255,0.4)', boxShadow: viewMode === key ? `0 0 0 1px ${POMODORO_COLORS[key]}44` : 'none', transition: 'all 0.2s' }}>
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Circle timer */}
-                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                                        <div style={{ animation: showAnim ? 'pulse-ring-acc 1s ease-out 3' : 'none', borderRadius: '50%', position: 'relative' }}>
-                                            <CircleTimer remaining={displayRemaining} total={displayDuration} color={timerColor} running={displayRunning} />
-                                            <CelebrationBurst show={showAnim} />
-                                        </div>
-                                    </div>
-
-                                    {/* Controls — same layout as session page */}
-                                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center' }}>
-                                        <button onClick={handleTimerReset}
-                                            style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', color: '#71717a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: isActiveMode ? 1 : 0.3, transition: 'background 0.2s' }}
-                                            title="Réinitialiser"
-                                            onMouseEnter={e => { if (isActiveMode) e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-                                            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}>
-                                            <RotateCcw size={13} />
-                                        </button>
-                                        <button onClick={handleToggleTimer}
-                                            style={{ width: 46, height: 46, borderRadius: '50%', border: 'none', background: `linear-gradient(135deg, ${timerColor}, ${timerColor}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 20px ${timerColor}55`, transition: 'transform 0.15s' }}
-                                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.07)'; }}
-                                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-                                            {displayRunning ? <Pause size={17} style={{ fill: '#fff' }} /> : <Play size={17} style={{ fill: '#fff', marginLeft: 2 }} />}
-                                        </button>
-                                    </div>
-                                    <p style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.2)', textAlign: 'center', margin: '10px 0 0' }}>
-                                        Minuteur synchronisé avec {partner.full_name}
-                                    </p>
                                 </div>
-                            )}
-
-                            {/* Session log */}
-                            {cwLog.length > 0 && (
-                                <div className="card card-glass" style={{ padding: '1.25rem' }}>
-                                    <h4 className="m-0 mb-3" style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>Historique récent</h4>
-                                    <div className="flex flex-col gap-2">
-                                        {cwLog.map(entry => {
-                                            const mins = Math.round(entry.duration_seconds / 60);
-                                            const date = entry.started_at?.toDate ? entry.started_at.toDate() : new Date();
-                                            return (
-                                                <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                                    <div>
-                                                        <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{entry.user_name}</span>
-                                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginLeft: '8px' }}>{POMODORO_LABELS[entry.mode] ?? 'Focus'}</span>
-                                                    </div>
-                                                    <div style={{ textAlign: 'right' }}>
-                                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: POMODORO_COLORS[entry.mode] ?? '#6366f1' }}>{mins}min</span>
-                                                        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)' }}>{date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {!amInSession && (
-                                <div className="card card-glass text-center py-10" style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
-                                    <Video size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.12 }} />
-                                    <p style={{ opacity: 0.35, fontSize: '0.88rem', margin: 0 }}>Rejoignez la session pour accéder au minuteur partagé</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ── TAB: COACH IA ── */}
-                    {activeTab === 'ia' && (
-                        <div className="fade-enter flex flex-col gap-4">
-
-                            {/* AI Coach */}
-                            <div className="card card-glass" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.03)' }}>
-                                <h4 className="flex items-center gap-2 m-0 mb-1" style={{ fontSize: '0.9rem', color: '#818cf8' }}>
-                                    <Bot size={16} /> Coach IA
-                                </h4>
-                                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', margin: '0 0 14px' }}>
-                                    Conseils personnalisés pour progresser ensemble avec {partner.full_name}.
-                                </p>
-                                <textarea
-                                    value={aiQuestion}
-                                    onChange={e => setAiQuestion(e.target.value)}
-                                    placeholder="Question spécifique ? (optionnel) — ex: Comment rester motivés en période de rush ?"
-                                    className="input w-full"
-                                    rows={2}
-                                    style={{ fontSize: '0.82rem', resize: 'none', marginBottom: '10px' }}
-                                />
-                                <button
-                                    onClick={handleAskCoach}
-                                    disabled={aiLoading}
-                                    className="btn btn-sm w-full"
-                                    style={{ justifyContent: 'center', background: 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.35)', gap: '6px' }}
-                                >
-                                    {aiLoading ? (
-                                        <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #818cf8', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} /> Analyse en cours...</>
-                                    ) : (
-                                        <><Bot size={13} /> Demander au coach</>
-                                    )}
-                                </button>
-
-                                {aiTips.length > 0 && (
-                                    <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {aiTips.map((tip, i) => (
-                                            <div key={i} style={{ display: 'flex', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                                                <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: 'rgba(99,102,241,0.25)', color: '#818cf8', fontSize: '0.65rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-                                                <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)', lineHeight: '1.5' }}>{tip}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
+                        )}
 
-                            {/* Smart Agenda */}
-                            <div className="card card-glass" style={{ padding: '1.25rem', border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.02)' }}>
-                                <h4 className="flex items-center gap-2 m-0 mb-1" style={{ fontSize: '0.9rem', color: '#10b981' }}>
-                                    <Zap size={16} /> Smart Agenda
-                                </h4>
-                                <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', margin: '0 0 14px' }}>
-                                    Génère un planning de sessions optimisé pour votre duo.
-                                </p>
+                        {/* ── TAB: AGENDA ── */}
+                        {activeTab === 'agenda' && (
+                            <div>
+                                <style>{`
+                                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+                                    .ag-wrap { font-family: 'DM Sans', system-ui, sans-serif; }
+                                    .ag-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+                                    .ag-title { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', system-ui; font-size: 1.05rem; font-weight: 700; color: #eeeef0; margin: 0; letter-spacing: -0.02em; }
+                                    .ag-title-icon { width: 34px; height: 34px; border-radius: 10px; background: rgba(99,102,241,0.14); border: 1px solid rgba(99,102,241,0.28); display: flex; align-items: center; justify-content: center; color: #818cf8; flex-shrink: 0; }
+                                    .ag-btn-ghost { padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+                                    .ag-btn-ghost:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+                                    .ag-btn-primary { padding: 7px 16px; border-radius: 10px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 12px rgba(99,102,241,0.35); }
+                                    .ag-btn-primary:hover { box-shadow: 0 5px 18px rgba(99,102,241,0.5); transform: translateY(-1px); }
+                                    .ag-btn-primary:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
+                                    .ag-form-panel { border-radius: 16px; padding: 20px; background: rgba(12,12,16,0.85); border: 1px solid rgba(99,102,241,0.28); margin-bottom: 20px; animation: ag-in 0.25s cubic-bezier(0.22,1,0.36,1); display: flex; flex-direction: column; gap: 12px; }
+                                    .ag-input { width: 100%; padding: 10px 13px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; color: #eeeeef; font-size: 0.88rem; font-family: 'DM Sans', system-ui; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+                                    .ag-input:focus { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.04); }
+                                    .ag-input::placeholder { color: rgba(255,255,255,0.2); }
+                                    .ag-label { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 6px; font-family: 'DM Sans', system-ui; }
+                                    .ag-form-footer { display: flex; gap: 8px; justify-content: flex-end; }
+                                    .ag-btn-cancel { padding: 8px 16px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); font-family: 'DM Sans', system-ui; transition: all 0.2s; }
+                                    .ag-btn-cancel:hover { background: rgba(255,255,255,0.08); }
+                                    .ag-list { display: flex; flex-direction: column; gap: 10px; }
+                                    .ag-card { display: flex; gap: 0; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07); background: rgba(14,14,20,0.9); animation: ag-in 0.3s cubic-bezier(0.22,1,0.36,1); transition: border-color 0.2s; }
+                                    .ag-card:hover { border-color: rgba(255,255,255,0.12); }
+                                    .ag-card.past { opacity: 0.55; }
+                                    .ag-date-col { width: 62px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px 0; background: rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.06); gap: 2px; }
+                                    .ag-dot { width: 6px; height: 6px; border-radius: 50%; border: 2px solid; margin-bottom: 4px; }
+                                    .ag-day-num { font-family: 'Outfit', system-ui; font-size: 1.45rem; font-weight: 800; line-height: 1; }
+                                    .ag-day-name { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.38); }
+                                    .ag-month { font-size: 0.66rem; color: rgba(255,255,255,0.28); text-transform: uppercase; letter-spacing: 0.04em; }
+                                    .ag-time { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 4px; font-family: 'DM Sans', system-ui; }
+                                    .ag-body { flex: 1; padding: 14px 16px; border-left: 3px solid transparent; min-width: 0; }
+                                    .ag-body-inner { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+                                    .ag-pill-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+                                    .ag-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; }
+                                    .ag-session-title { font-family: 'Outfit', system-ui; font-size: 0.95rem; font-weight: 700; color: #eeeef0; margin: 0 0 4px; line-height: 1.3; }
+                                    .ag-desc { font-size: 0.78rem; color: rgba(255,255,255,0.42); margin: 5px 0 0; line-height: 1.4; }
+                                    .ag-meta { font-size: 0.7rem; color: rgba(255,255,255,0.3); margin-top: 5px; display: flex; gap: 10px; flex-wrap: wrap; }
+                                    .ag-side { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex-shrink: 0; }
+                                    .ag-join-btn { padding: 6px 13px; border-radius: 9px; font-size: 0.77rem; font-weight: 700; cursor: pointer; border: none; font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 5px; }
+                                    .ag-join-btn.join { background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.35); }
+                                    .ag-join-btn.join:hover { box-shadow: 0 4px 14px rgba(99,102,241,0.5); transform: translateY(-1px); }
+                                    .ag-join-btn.leave { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.09); }
+                                    .ag-icon-btn { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.25); transition: all 0.2s; }
+                                    .ag-icon-btn.del:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); color: #f87171; }
+                                    .ag-empty { border-radius: 16px; padding: 3rem 2rem; background: rgba(255,255,255,0.01); border: 1px dashed rgba(255,255,255,0.07); text-align: center; }
+                                    @keyframes ag-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+                                `}</style>
 
-                                {/* Rhythm selector */}
-                                <div style={{ marginBottom: '10px' }}>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>Rythme</label>
-                                    <div className="flex gap-2">
-                                        {([
-                                            { key: 'leger', label: '🌱 Léger', sub: '2-3 sessions' },
-                                            { key: 'regulier', label: '⚡ Régulier', sub: '4-6 sessions' },
-                                            { key: 'intensif', label: '🔥 Intensif', sub: '8-10 sessions' },
-                                        ] as const).map(r => (
-                                            <button key={r.key} onClick={() => setAgendaRhythm(r.key)}
-                                                style={{ flex: 1, padding: '8px 4px', borderRadius: '10px', border: `1px solid ${agendaRhythm === r.key ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)'}`, background: agendaRhythm === r.key ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.2s' }}>
-                                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: agendaRhythm === r.key ? '#10b981' : 'rgba(255,255,255,0.4)' }}>{r.label}</div>
-                                                <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.25)', marginTop: '2px' }}>{r.sub}</div>
-                                            </button>
-                                        ))}
+                                <div className="ag-wrap">
+                                    <div className="ag-header">
+                                        <h3 className="ag-title">
+                                            <span className="ag-title-icon"><Calendar size={16} /></span>
+                                            Agenda
+                                            {sessions.length > 0 && (
+                                                <span style={{ fontSize: '0.72rem', padding: '2px 9px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 700, marginLeft: 4 }}>
+                                                    {sessions.length}
+                                                </span>
+                                            )}
+                                        </h3>
+                                        <button className="ag-btn-primary" onClick={() => setShowSessionForm(v => !v)}>
+                                            {showSessionForm ? <><X size={13} /> Annuler</> : <><Calendar size={13} /> Planifier</>}
+                                        </button>
                                     </div>
-                                </div>
 
-                                {/* Time preference */}
-                                <div style={{ marginBottom: '12px' }}>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '6px' }}>Préférences horaires (optionnel)</label>
-                                    <input
-                                        className="input w-full"
-                                        value={agendaTimePref}
-                                        onChange={e => setAgendaTimePref(e.target.value)}
-                                        placeholder="ex: soir après 18h, week-end matin..."
-                                        style={{ fontSize: '0.82rem' }}
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={handleGenerateAgenda}
-                                    disabled={agendaLoading}
-                                    className="btn btn-sm w-full"
-                                    style={{ justifyContent: 'center', background: 'rgba(16,185,129,0.18)', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)', gap: '6px' }}
-                                >
-                                    {agendaLoading ? (
-                                        <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #10b981', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} /> Génération en cours...</>
-                                    ) : (
-                                        <><Calendar size={13} /> Générer le planning</>
+                                    {showSessionForm && (
+                                        <form onSubmit={handleAddSession} className="ag-form-panel">
+                                            <div>
+                                                <label className="ag-label">Titre de la session *</label>
+                                                <input className="ag-input" placeholder="ex: Session de travail commun" value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} required />
+                                            </div>
+                                            <div>
+                                                <label className="ag-label">Date et heure *</label>
+                                                <input type="datetime-local" className="ag-input" value={sessionDate} onChange={e => setSessionDate(e.target.value)} required />
+                                            </div>
+                                            <div>
+                                                <label className="ag-label">Note (optionnel)</label>
+                                                <textarea className="ag-input" rows={2} placeholder="Objectifs de la session..." value={sessionNote} onChange={e => setSessionNote(e.target.value)} style={{ resize: 'none' }} />
+                                            </div>
+                                            <div className="ag-form-footer">
+                                                <button type="button" className="ag-btn-cancel" onClick={() => setShowSessionForm(false)}>Annuler</button>
+                                                <button type="submit" className="ag-btn-primary" disabled={savingSession || !sessionTitle.trim() || !sessionDate}>
+                                                    {savingSession ? 'Enregistrement...' : '📅 Planifier la session'}
+                                                </button>
+                                            </div>
+                                        </form>
                                     )}
-                                </button>
 
-                                {generatedSessions.length > 0 && (
-                                    <div style={{ marginTop: '14px' }}>
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                                            {generatedSessions.length} sessions générées
+                                    {sessions.length === 0 ? (
+                                        <div className="ag-empty">
+                                            <Calendar size={30} style={{ margin: '0 auto 12px', color: 'rgba(255,255,255,0.1)', display: 'block' }} />
+                                            <p style={{ opacity: 0.35, fontSize: '0.85rem', margin: '0 0 10px', fontFamily: 'DM Sans, system-ui' }}>Aucune session planifiée</p>
+                                            <button onClick={() => setShowSessionForm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', color: '#818cf8', fontFamily: 'DM Sans, system-ui' }}>+ Planifier →</button>
                                         </div>
-                                        <div className="flex flex-col gap-2" style={{ marginBottom: '12px' }}>
-                                            {generatedSessions.map((s, i) => {
-                                                const date = new Date(s.scheduled_at);
-                                                const dateStr = date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                                const typeColor = s.type === 'travail' ? '#6366f1' : s.type === 'discussion' ? '#10b981' : '#f59e0b';
+                                    ) : (
+                                        <div className="ag-list">
+                                            {sessions.map((s, idx) => {
+                                                const dateObj = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
+                                                const isPast = dateObj < new Date();
+                                                const attending = s.attendees?.includes(user!.uid);
+                                                const dayNum = dateObj.getDate();
+                                                const dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'short' });
+                                                const monthName = dateObj.toLocaleDateString('fr-FR', { month: 'short' });
+                                                const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                                                const typeColor = '#6366f1';
                                                 return (
-                                                    <div key={i} style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: `3px solid ${typeColor}` }}>
-                                                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#e4e4e7', marginBottom: '2px' }}>{s.title}</div>
-                                                        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>📅 {dateStr}</div>
-                                                        {s.description && <div style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{s.description}</div>}
+                                                    <div key={s.id} className={`ag-card${isPast ? ' past' : ''}`} style={{ animationDelay: `${idx * 0.05}s` }}>
+                                                        <div className="ag-date-col">
+                                                            <div className="ag-dot" style={{ borderColor: isPast ? 'rgba(255,255,255,0.15)' : typeColor, boxShadow: isPast ? 'none' : `0 0 6px ${typeColor}60` }} />
+                                                            <div className="ag-day-num" style={{ color: isPast ? 'rgba(255,255,255,0.3)' : typeColor }}>{dayNum}</div>
+                                                            <div className="ag-day-name">{dayName}</div>
+                                                            <div className="ag-month">{monthName}</div>
+                                                            <div className="ag-time">{timeStr}</div>
+                                                        </div>
+                                                        <div className="ag-body" style={{ borderLeftColor: isPast ? 'rgba(255,255,255,0.06)' : `${typeColor}35` }}>
+                                                            <div className="ag-body-inner">
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div className="ag-session-title">{s.title}</div>
+                                                                    {s.note && <div className="ag-desc">{s.note}</div>}
+                                                                    <div className="ag-meta">
+                                                                        <span>par {s.creator_name}</span>
+                                                                        <span>{s.attendees?.length ?? 0} participant{(s.attendees?.length ?? 0) !== 1 ? 's' : ''}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="ag-side">
+                                                                    {!isPast && (
+                                                                        <button className={`ag-join-btn ${attending ? 'leave' : 'join'}`} onClick={() => handleToggleAttendee(s)}>
+                                                                            {attending ? 'Se désinscrire' : '✓ Participer'}
+                                                                        </button>
+                                                                    )}
+                                                                    {s.creator_id === user?.uid && (
+                                                                        <button className="ag-icon-btn del" onClick={() => handleDeleteSession(s.id)} title="Supprimer">
+                                                                            <Trash2 size={13} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                        <button
-                                            onClick={handleSaveGeneratedAgenda}
-                                            disabled={savingAgenda}
-                                            className="btn btn-sm w-full"
-                                            style={{ justifyContent: 'center', background: 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.35)', gap: '6px' }}
-                                        >
-                                            {savingAgenda ? 'Enregistrement...' : '✓ Sauvegarder dans l\'agenda'}
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── TAB: COWORKING ── */}
+                        {activeTab === 'coworking' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'ad-in 0.3s ease' }}>
+                                {/* Presence + Join/Leave */}
+                                <div className="ad-card" style={{ borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.03)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                                        <Video size={15} style={{ color: '#10b981' }} />
+                                        <span className="ad-heading" style={{ fontSize: '0.88rem', color: '#10b981' }}>Session live</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                                        {[{ label: 'Vous', active: amInSession }, { label: partner.full_name, active: partnerInSession }].map(({ label, active }) => (
+                                            <div key={label} className="ad-presence-pill" style={{ borderColor: active ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.08)', background: active ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)' }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: active ? '#10b981' : 'rgba(255,255,255,0.2)', boxShadow: active ? '0 0 6px rgba(16,185,129,0.6)' : 'none', flexShrink: 0, display: 'inline-block', ...(active ? { animation: 'ad-pulse 2s ease infinite' } : {}) }} />
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: active ? '#10b981' : 'rgba(255,255,255,0.38)' }}>{label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!amInSession ? (
+                                        <button onClick={handleJoinCoworking} style={{ width: '100%', padding: '11px', borderRadius: 12, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)', color: '#10b981', fontFamily: 'Outfit, system-ui', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, transition: 'all 0.2s' }}>
+                                            <Video size={14} /> Rejoindre la session
                                         </button>
+                                    ) : (
+                                        <button onClick={handleLeaveCoworking} className="ad-btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>
+                                            <X size={14} /> Quitter la session
+                                        </button>
+                                    )}
+                                    {amInSession && partnerInSession && (
+                                        <div style={{ marginTop: 10, padding: '8px 14px', borderRadius: 10, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', fontSize: '0.8rem', color: '#10b981', textAlign: 'center', fontWeight: 600 }}>
+                                            ✦ Vous êtes en session ensemble !
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Pomodoro timer */}
+                                {amInSession && (
+                                    <div className="ad-card" style={{ borderColor: `${timerColor}30`, background: `${timerColor}06`, padding: '24px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                                <Timer size={15} style={{ color: timerColor }} />
+                                                <span className="ad-heading" style={{ fontSize: '0.88rem', color: timerColor }}>Focus partagé</span>
+                                            </div>
+                                            <button onClick={() => setShowTimerSettings(v => !v)}
+                                                style={{ background: showTimerSettings ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showTimerSettings ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.09)'}`, borderRadius: 8, color: showTimerSettings ? '#818cf8' : 'rgba(255,255,255,0.3)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+                                                <Settings2 size={13} />
+                                            </button>
+                                        </div>
+
+                                        {showTimerSettings && (
+                                            <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Durées (minutes)</span>
+                                                {(['focus', 'short', 'long'] as const).map(key => (
+                                                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                        <span style={{ fontSize: '0.75rem', color: POMODORO_COLORS[key], fontWeight: 700, width: 80 }}>{POMODORO_LABELS[key]}</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                            <button onClick={() => setDraftDurations(d => ({ ...d, [key]: Math.max(1, d[key] - 1) }))} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>−</button>
+                                                            <input type="text" inputMode="numeric" value={draftDurations[key]} onChange={e => { const n = parseInt(e.target.value.replace(/\D/g, '') || '1'); setDraftDurations(d => ({ ...d, [key]: Math.min(180, Math.max(1, n)) })); }} style={{ width: 44, textAlign: 'center', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.13)', borderRadius: 6, color: '#f8f9fa', fontSize: '0.88rem', fontWeight: 700, padding: '4px 2px', outline: 'none', fontFamily: 'DM Sans, system-ui' }} />
+                                                            <button onClick={() => setDraftDurations(d => ({ ...d, [key]: Math.min(180, d[key] + 1) }))} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>+</button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <button onClick={handleApplyDurations} style={{ marginTop: 2, padding: '7px', borderRadius: 8, border: 'none', background: 'rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, system-ui' }}>
+                                                    ✓ Appliquer (synchronisé)
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Mode tabs */}
+                                        <div style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
+                                            {Object.entries(POMODORO_LABELS).map(([key, label]) => (
+                                                <button key={key} onClick={() => handleSwitchMode(key)} className="ad-mode-btn"
+                                                    style={{ background: viewMode === key ? `${POMODORO_COLORS[key]}20` : 'rgba(255,255,255,0.04)', color: viewMode === key ? POMODORO_COLORS[key] : 'rgba(255,255,255,0.38)', boxShadow: viewMode === key ? `0 0 0 1px ${POMODORO_COLORS[key]}44` : 'none' }}>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Circle timer */}
+                                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+                                            <div style={{ animation: showAnim ? 'pulse-ring-acc 1s ease-out 3' : 'none', borderRadius: '50%', position: 'relative' }}>
+                                                <CircleTimer remaining={displayRemaining} total={displayDuration} color={timerColor} running={displayRunning} />
+                                                <CelebrationBurst show={showAnim} />
+                                            </div>
+                                        </div>
+
+                                        {/* Controls */}
+                                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                                            <button onClick={handleTimerReset} title="Réinitialiser"
+                                                style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', color: '#71717a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: isActiveMode ? 1 : 0.3, transition: 'background 0.2s' }}
+                                                onMouseEnter={e => { if (isActiveMode) e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}>
+                                                <RotateCcw size={13} />
+                                            </button>
+                                            <button onClick={handleToggleTimer}
+                                                style={{ width: 50, height: 50, borderRadius: '50%', border: 'none', background: `linear-gradient(135deg, ${timerColor}, ${timerColor}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 24px ${timerColor}55`, transition: 'transform 0.15s' }}
+                                                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.07)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
+                                                {displayRunning ? <Pause size={18} style={{ fill: '#fff' }} /> : <Play size={18} style={{ fill: '#fff', marginLeft: 2 }} />}
+                                            </button>
+                                        </div>
+                                        <p style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.2)', textAlign: 'center', margin: 0 }}>Synchronisé avec {partner.full_name}</p>
+                                    </div>
+                                )}
+
+                                {!amInSession && (
+                                    <div style={{ padding: '2.5rem 2rem', textAlign: 'center', borderRadius: 18, border: '1px dashed rgba(255,255,255,0.08)' }}>
+                                        <Video size={30} style={{ margin: '0 auto 12px', color: 'rgba(255,255,255,0.1)', display: 'block' }} />
+                                        <p style={{ opacity: 0.3, fontSize: '0.85rem', margin: 0 }}>Rejoignez la session pour accéder au minuteur partagé</p>
+                                    </div>
+                                )}
+
+                                {/* Session log */}
+                                {cwLog.length > 0 && (
+                                    <div className="ad-card">
+                                        <span className="ad-heading" style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, display: 'block' }}>Historique récent</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                            {cwLog.map((entry, i) => {
+                                                const mins = Math.round(entry.duration_seconds / 60);
+                                                const date = entry.started_at?.toDate ? entry.started_at.toDate() : new Date();
+                                                return (
+                                                    <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < cwLog.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                                                        <div>
+                                                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{entry.user_name}</span>
+                                                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginLeft: 8 }}>{POMODORO_LABELS[entry.mode] ?? 'Focus'}</span>
+                                                        </div>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <span className="ad-mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: POMODORO_COLORS[entry.mode] ?? '#d97706' }}>{mins}min</span>
+                                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)' }}>{date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
+                        )}
 
-                        </div>
-                    )}
-
-                </div>
-
-                {/* RIGHT: Chat */}
-                <div className="card card-glass flex flex-col" style={{ height: '580px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', position: 'sticky', top: '100px' }}>
-
-                    {/* Header with call button */}
-                    <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.06)', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        💬 Chat privé
-                        <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'rgba(255,255,255,0.35)', marginLeft: 'auto', marginRight: '8px' }}>avec {partner.full_name}</span>
-                        <button onClick={() => partner && activateCall({ pairId: id as string, partnerName: partner.full_name, partnerId: partner.id, partnerAvatarUrl: partner.avatar_url ?? null, partnerAvatarStyle: partner.avatar_style ?? null })} disabled={callLoading || isOnCall}
-                            title="Démarrer un appel vidéo"
-                            style={{ background: isOnCall ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', color: '#10b981', padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 600, flexShrink: 0 }}>
-                            <Video size={13} /> {isOnCall ? 'En appel' : callLoading ? '...' : 'Appel'}
-                        </button>
-                    </div>
-
-                    {/* Messages */}
-                    <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {messages.length === 0 ? (
-                            <div style={{ margin: 'auto', textAlign: 'center', opacity: 0.3 }}>
-                                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</div>
-                                <div style={{ fontSize: '0.82rem' }}>Commencez à vous encourager !</div>
-                            </div>
-                        ) : messages.map(msg => {
-                            const isMe = msg.sender_id === user!.uid;
-                            const time = msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-                            return (
-                                <div key={msg.id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-end' }}>
-                                    <div style={{
-                                        maxWidth: '80%', padding: '8px 12px',
-                                        borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                                        background: isMe ? 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' : 'rgba(255,255,255,0.07)',
-                                        fontSize: '0.85rem', lineHeight: '1.4', color: '#fff',
-                                        border: isMe ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                                    }}>
-                                        {msg.content}
-                                        <div style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '3px', textAlign: isMe ? 'right' : 'left' }}>{time}</div>
+                        {/* ── TAB: COACH IA ── */}
+                        {activeTab === 'ia' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'ad-in 0.3s ease' }}>
+                                <div className="ad-card" style={{ borderColor: 'rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.03)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                                        <Bot size={15} style={{ color: '#818cf8' }} />
+                                        <span className="ad-heading" style={{ fontSize: '0.88rem', color: '#818cf8' }}>Coach IA</span>
                                     </div>
+                                    <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.32)', margin: '0 0 14px' }}>Conseils personnalisés pour progresser avec {partner.full_name}.</p>
+                                    <textarea value={aiQuestion} onChange={e => setAiQuestion(e.target.value)} placeholder="Question spécifique ? (optionnel)" className="ad-input" rows={2} style={{ resize: 'none', marginBottom: 10 }} />
+                                    <button onClick={handleAskCoach} disabled={aiLoading} style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(99,102,241,0.16)', color: '#818cf8', fontFamily: 'Outfit, system-ui', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, transition: 'all 0.2s' }}>
+                                        {aiLoading ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #818cf8', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} /> Analyse...</> : <><Bot size={13} /> Demander au coach</>}
+                                    </button>
+                                    {aiTips.length > 0 && (
+                                        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {aiTips.map((tip, i) => (
+                                                <div key={i} className="ad-ai-tip">
+                                                    <span style={{ flexShrink: 0, width: 21, height: 21, borderRadius: '50%', background: 'rgba(99,102,241,0.25)', color: '#818cf8', fontSize: '0.62rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                                                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255,255,255,0.72)', lineHeight: 1.55 }}>{tip}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            );
-                        })}
+
+                                {/* Smart Agenda */}
+                                <div className="ad-card" style={{ borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.02)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                                        <Zap size={15} style={{ color: '#10b981' }} />
+                                        <span className="ad-heading" style={{ fontSize: '0.88rem', color: '#10b981' }}>Smart Agenda</span>
+                                    </div>
+                                    <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.32)', margin: '0 0 16px' }}>Planning optimisé généré par l'IA pour votre duo.</p>
+
+                                    <span className="ad-label">Rythme</span>
+                                    <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                                        {([{ key: 'leger', label: '🌱 Léger', sub: '2-3 sessions' }, { key: 'regulier', label: '⚡ Régulier', sub: '4-6 sessions' }, { key: 'intensif', label: '🔥 Intensif', sub: '8-10 sessions' }] as const).map(r => (
+                                            <button key={r.key} onClick={() => setAgendaRhythm(r.key)} className="ad-rhythm-btn"
+                                                style={{ borderColor: agendaRhythm === r.key ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)', background: agendaRhythm === r.key ? 'rgba(16,185,129,0.14)' : 'rgba(255,255,255,0.03)' }}>
+                                                <div style={{ fontSize: '0.74rem', fontWeight: 700, color: agendaRhythm === r.key ? '#10b981' : 'rgba(255,255,255,0.38)', fontFamily: 'DM Sans, system-ui' }}>{r.label}</div>
+                                                <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.22)', marginTop: 2, fontFamily: 'DM Sans, system-ui' }}>{r.sub}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <span className="ad-label">Préférences horaires (optionnel)</span>
+                                    <input className="ad-input" value={agendaTimePref} onChange={e => setAgendaTimePref(e.target.value)} placeholder="ex: soir après 18h, week-end matin..." style={{ marginBottom: 12 }} />
+
+                                    <button onClick={handleGenerateAgenda} disabled={agendaLoading} style={{ width: '100%', padding: '10px', borderRadius: 12, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#10b981', fontFamily: 'Outfit, system-ui', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, transition: 'all 0.2s' }}>
+                                        {agendaLoading ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #10b981', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} /> Génération...</> : <><Calendar size={13} /> Générer le planning</>}
+                                    </button>
+
+                                    {generatedSessions.length > 0 && (
+                                        <div style={{ marginTop: 14 }}>
+                                            <span className="ad-label">{generatedSessions.length} sessions générées</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                                                {generatedSessions.map((s, i) => {
+                                                    const date = new Date(s.scheduled_at);
+                                                    const typeColor = s.type === 'travail' ? '#6366f1' : s.type === 'discussion' ? '#10b981' : '#f59e0b';
+                                                    return (
+                                                        <div key={i} style={{ padding: '10px 14px', borderRadius: 11, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: `3px solid ${typeColor}` }}>
+                                                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#e4e4e7', marginBottom: 3 }}>{s.title}</div>
+                                                            <div style={{ fontSize: '0.72rem', color: '#f59e0b', marginBottom: 4 }}>📅 {date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                                                            {s.description && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.32)', lineHeight: 1.4 }}>{s.description}</div>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <button onClick={handleSaveGeneratedAgenda} disabled={savingAgenda} style={{ width: '100%', padding: '9px', borderRadius: 11, border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(99,102,241,0.16)', color: '#818cf8', fontFamily: 'Outfit, system-ui', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                                                {savingAgenda ? 'Enregistrement...' : '✓ Sauvegarder dans l\'agenda'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <form onSubmit={handleSendMessage} style={{ padding: '0.75rem 1rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '8px', flexShrink: 0 }}>
-                        <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)}
-                            placeholder="Encouragez-vous..." className="input flex-1" style={{ fontSize: '0.85rem' }} autoComplete="off" />
-                        <button type="submit" className="btn btn-primary btn-sm" disabled={sending || !newMessage.trim()} style={{ flexShrink: 0 }}>
-                            <Send size={14} />
-                        </button>
-                    </form>
+                    {/* RIGHT: Chat */}
+                    <div style={{ background: 'rgba(14,14,20,0.95)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, height: '600px', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'sticky', top: 100 }}>
+                        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <span className="ad-heading" style={{ fontSize: '0.88rem', color: '#f0f0f5' }}>💬 Chat privé</span>
+                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginLeft: 'auto', marginRight: 8 }}>avec {partner.full_name}</span>
+                            <button onClick={() => partner && activateCall({ pairId: id as string, partnerName: partner.full_name, partnerId: partner.id, partnerAvatarUrl: partner.avatar_url ?? null, partnerAvatarStyle: partner.avatar_style ?? null })} disabled={callLoading || isOnCall}
+                                style={{ background: isOnCall ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 9, color: '#10b981', padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.75rem', fontWeight: 700, flexShrink: 0, fontFamily: 'DM Sans, system-ui' }}>
+                                <Video size={13} /> {isOnCall ? 'En appel' : callLoading ? '...' : 'Appel'}
+                            </button>
+                        </div>
+
+                        <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {messages.length === 0 ? (
+                                <div style={{ margin: 'auto', textAlign: 'center', color: 'rgba(255,255,255,0.2)' }}>
+                                    <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>💬</div>
+                                    <div style={{ fontSize: '0.78rem' }}>Encouragez-vous !</div>
+                                </div>
+                            ) : messages.map(msg => {
+                                const isMe = msg.sender_id === user!.uid;
+                                const time = msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                                return (
+                                    <div key={msg.id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-end' }}>
+                                        <div className={isMe ? 'ad-chat-bubble-me' : 'ad-chat-bubble-partner'}>
+                                            {msg.content}
+                                            <div style={{ fontSize: '0.62rem', opacity: 0.6, marginTop: 3, textAlign: isMe ? 'right' : 'left' }}>{time}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <form onSubmit={handleSendMessage} style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8, flexShrink: 0 }}>
+                            <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Encouragez-vous..." className="ad-input" style={{ fontSize: '0.85rem', flex: 1, width: 'auto' }} autoComplete="off" />
+                            <button type="submit" disabled={sending || !newMessage.trim()}
+                                style={{ padding: '0 14px', borderRadius: 11, border: 'none', background: !newMessage.trim() ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #d97706, #f59e0b)', color: !newMessage.trim() ? 'rgba(255,255,255,0.2)' : '#0a0a10', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                                <Send size={14} />
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
 
-        {/* ── Focus Guard floating overlay ── */}
+        {/* ── Focus Guard overlay ── */}
         {(focusGuardMsg || focusGuardLoading) && (
             <>
-                <style>{`
-                    @keyframes fgSlideIn {
-                        from { opacity: 0; transform: translateY(16px) scale(0.96); }
-                        to   { opacity: 1; transform: translateY(0) scale(1); }
-                    }
-                `}</style>
-                <div style={{
-                    position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-                    width: 'min(420px, calc(100vw - 40px))',
-                    zIndex: 9998,
-                    background: 'linear-gradient(135deg, #141416 0%, #1c1c24 100%)',
-                    border: '1px solid rgba(99,102,241,0.35)',
-                    borderRadius: 18,
-                    boxShadow: '0 12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(99,102,241,0.15)',
-                    animation: 'fgSlideIn 0.32s cubic-bezier(0.16,1,0.3,1)',
-                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                    overflow: 'hidden',
-                }}>
-                    {/* Top accent */}
+                <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', width: 'min(420px, calc(100vw - 40px))', zIndex: 9998, background: 'rgba(14,14,20,0.99)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 20, boxShadow: '0 16px 52px rgba(0,0,0,0.8), 0 0 0 1px rgba(99,102,241,0.15)', animation: 'fgSlideIn 0.32s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.6), transparent)' }} />
-
                     <div style={{ padding: '16px 18px 14px' }}>
-                        {/* Header */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ width: 28, height: 28, borderRadius: 9, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <div style={{ width: 28, height: 28, borderRadius: 9, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Bot size={14} color="#818cf8" />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#a5b4fc', letterSpacing: '0.04em' }}>Focus Guard</div>
-                                    <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>Coach anti-procrastination</div>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#a5b4fc', fontFamily: 'Outfit, system-ui' }}>Focus Guard</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.28)' }}>Coach anti-procrastination</div>
                                 </div>
                             </div>
-                            <button onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; }}
-                                style={{ width: 24, height: 24, borderRadius: 7, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                            <button onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; }} style={{ width: 24, height: 24, borderRadius: 7, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                 <X size={11} />
                             </button>
                         </div>
-
-                        {/* Message */}
                         {focusGuardLoading ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'rgba(99,102,241,0.07)' }}>
-                                <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #818cf8', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
-                                <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.45)' }}>Focus Guard analyse ta session...</span>
+                                <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #818cf8', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                                <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>Analyse ta session...</span>
                             </div>
                         ) : (
                             <>
-                                <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.55, padding: '10px 12px', borderRadius: 10, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.12)' }}>
-                                    {focusGuardMsg}
-                                </p>
-
+                                <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.78)', lineHeight: 1.55, padding: '10px 12px', borderRadius: 10, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.12)' }}>{focusGuardMsg}</p>
                                 {focusGuardSubtasks.length > 0 && (
                                     <div style={{ marginBottom: 12 }}>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>
-                                            3 sous-tâches pour démarrer
-                                        </div>
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>3 sous-tâches pour démarrer</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                             {focusGuardSubtasks.map((task, i) => (
                                                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                                    <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: 6, background: 'rgba(99,102,241,0.2)', color: '#818cf8', fontSize: '0.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>{i + 1}</span>
-                                                    <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>{task}</span>
+                                                    <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: 6, background: 'rgba(99,102,241,0.2)', color: '#818cf8', fontSize: '0.6rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                                                    <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.62)', lineHeight: 1.4 }}>{task}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 )}
-
                                 <div style={{ display: 'flex', gap: 8 }}>
-                                    <button
-                                        onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; handleTimerStart(); }}
-                                        style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>
-                                        Je continue !
-                                    </button>
-                                    <button
-                                        onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; }}
-                                        style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', cursor: 'pointer' }}>
-                                        Fermer
-                                    </button>
+                                    <button onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; handleTimerStart(); }} style={{ flex: 1, padding: '9px', borderRadius: 11, border: 'none', background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, system-ui' }}>Je continue !</button>
+                                    <button onClick={() => { setFocusGuardMsg(null); setFocusGuardSubtasks([]); pauseCountRef.current = 0; }} style={{ padding: '9px 14px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.38)', fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans, system-ui' }}>Fermer</button>
                                 </div>
                             </>
                         )}

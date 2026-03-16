@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { db, storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove, setDoc, deleteDoc } from 'firebase/firestore';
-import { Link as LinkIcon, Users, Edit3, Save, TrendingUp, Calendar, CheckSquare, MessageSquare, Send, Bot, FileText, BarChart2, Video, Rocket, LayoutDashboard, UserPlus, FileUp, Hash, Pin, SmilePlus, X, Target, Code, BookOpen, Clock, Globe, Lock, Palette, Music, Dumbbell, FlaskConical, Briefcase, Pen, ChevronRight, Star, Zap, Trash2, Upload, Download, ExternalLink } from 'lucide-react';
+import { Link as LinkIcon, Users, Edit3, Save, TrendingUp, Calendar, CheckSquare, MessageSquare, Send, Bot, FileText, BarChart2, Video, Rocket, LayoutDashboard, UserPlus, FileUp, Hash, Pin, SmilePlus, X, Target, Code, BookOpen, Clock, Globe, Lock, Palette, Music, Dumbbell, FlaskConical, Briefcase, Pen, ChevronRight, Star, Zap, Trash2, Upload, Download, ExternalLink, StickyNote, Scale, Megaphone, HelpCircle, Crosshair, Plus, CheckCircle, AlertCircle, Map, Flag } from 'lucide-react';
 import Link from 'next/link';
 import { useLocale } from '@/context/LocaleContext';
 import { useUI } from '@/context/UIContext';
@@ -16,6 +16,17 @@ import { FloatingAiAssistant } from '@/components/ui/glowing-ai-chat-assistant';
 
 // Format hours: < 1h → "Xmin", ≥ 1h → up to 2 decimal places
 const fmtHours = (h: number) => h < 1 ? `${Math.round(h * 60)}min` : `${parseFloat(h.toFixed(2))}h`;
+const fmtDate = (ts: any): string => {
+    if (!ts) return '';
+    const d = ts?.toDate?.() ?? new Date(ts);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 60000) return 'À l\'instant';
+    if (diff < 3600000) return `Il y a ${Math.floor(diff / 60000)}min`;
+    if (diff < 86400000) return `Il y a ${Math.floor(diff / 3600000)}h`;
+    if (diff < 172800000) return 'Hier';
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+};
 
 export default function ObjectiveDetail() {
     const { id } = useParams();
@@ -1057,6 +1068,423 @@ export default function ObjectiveDetail() {
     };
 
 
+    // ─── NOTES COLLABORATIVES ──────────────────────────────────────────────
+    const [collabNote, setCollabNote] = useState('');
+    const [savingNote, setSavingNote] = useState(false);
+    const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (!id) return;
+        const noteRef = doc(db, 'objectives', id as string, 'collab', 'note');
+        const unsub = onSnapshot(noteRef, (snap) => {
+            if (snap.exists()) setCollabNote(snap.data().content ?? '');
+        });
+        return () => unsub();
+    }, [id]);
+
+    const handleNoteChange = (val: string) => {
+        setCollabNote(val);
+        if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+        noteTimerRef.current = setTimeout(async () => {
+            setSavingNote(true);
+            await setDoc(doc(db, 'objectives', id as string, 'collab', 'note'), {
+                content: val, updated_by: user?.uid, updated_at: serverTimestamp()
+            }, { merge: true });
+            setSavingNote(false);
+        }, 800);
+    };
+
+    // ─── DÉCISIONS ─────────────────────────────────────────────────────────
+    type Decision = { id: string; title: string; description: string; outcome: 'approved' | 'rejected' | 'pending'; creator_id: string; creator_name: string; created_at: any };
+    const [decisions, setDecisions] = useState<Decision[]>([]);
+    const [showDecisionForm, setShowDecisionForm] = useState(false);
+    const [newDecision, setNewDecision] = useState({ title: '', description: '', outcome: 'pending' as 'approved' | 'rejected' | 'pending' });
+    const [addingDecision, setAddingDecision] = useState(false);
+
+    useEffect(() => {
+        if (!id) return;
+        const q = query(collection(db, 'objectives', id as string, 'decisions'), orderBy('created_at', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            setDecisions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Decision)));
+        });
+        return () => unsub();
+    }, [id]);
+
+    const handleAddDecision = async () => {
+        if (!newDecision.title.trim() || !user?.uid) return;
+        setAddingDecision(true);
+        try {
+            await addDoc(collection(db, 'objectives', id as string, 'decisions'), {
+                title: newDecision.title,
+                description: newDecision.description,
+                outcome: 'pending',
+                creator_id: user.uid,
+                creator_name: user.displayName || user.email?.split('@')[0] || 'Anonyme',
+                created_at: serverTimestamp()
+            });
+            // Notify admins/creators if poster is a regular member
+            const posterIsAdmin = objective?.creator_id === user.uid || memberships.find((m: any) => m.user_id === user.uid)?.role === 'admin';
+            if (!posterIsAdmin) {
+                const targets = [objective?.creator_id, ...memberships.filter((m: any) => m.role === 'admin').map((m: any) => m.user_id)]
+                    .filter((uid): uid is string => !!uid && uid !== user.uid);
+                await Promise.all([...new Set(targets)].map(uid =>
+                    addDoc(collection(db, 'users', uid, 'notifications'), {
+                        message: `${user.displayName || user.email?.split('@')[0]} a proposé une décision dans "${objective?.title}" — en attente de validation.`,
+                        type: 'decision',
+                        link: `/objective/${id}`,
+                        read: false,
+                        created_at: serverTimestamp()
+                    })
+                ));
+            }
+        } catch (err) { console.error(err); }
+        setNewDecision({ title: '', description: '', outcome: 'pending' });
+        setShowDecisionForm(false);
+        setAddingDecision(false);
+    };
+
+    const handleDeleteDecision = async (decId: string) => {
+        await deleteDoc(doc(db, 'objectives', id as string, 'decisions', decId));
+    };
+
+    // ─── ANNONCES ──────────────────────────────────────────────────────────
+    type Announcement = { id: string; title: string; body: string; creator_id: string; creator_name: string; created_at: any };
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+    const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+    const [newAnnouncement, setNewAnnouncement] = useState({ title: '', body: '' });
+    const [addingAnnouncement, setAddingAnnouncement] = useState(false);
+
+    useEffect(() => {
+        if (!id) return;
+        const q = query(collection(db, 'objectives', id as string, 'announcements'), orderBy('created_at', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)));
+        });
+        return () => unsub();
+    }, [id]);
+
+    const handleAddAnnouncement = async () => {
+        if (!newAnnouncement.title.trim()) return;
+        setAddingAnnouncement(true);
+        await addDoc(collection(db, 'objectives', id as string, 'announcements'), {
+            ...newAnnouncement,
+            creator_id: user?.uid,
+            creator_name: user?.displayName || user?.email?.split('@')[0],
+            created_at: serverTimestamp()
+        });
+        setNewAnnouncement({ title: '', body: '' });
+        setShowAnnouncementForm(false);
+        setAddingAnnouncement(false);
+    };
+
+    const handleDeleteAnnouncement = async (annId: string) => {
+        await deleteDoc(doc(db, 'objectives', id as string, 'announcements', annId));
+    };
+
+    // ─── Q&A ───────────────────────────────────────────────────────────────
+    type Question = { id: string; question: string; answer?: string; creator_id: string; creator_name: string; answered_by?: string; answered_at?: any; created_at: any };
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [showQuestionForm, setShowQuestionForm] = useState(false);
+    const [newQuestionText, setNewQuestionText] = useState('');
+    const [addingQuestion, setAddingQuestion] = useState(false);
+    const [answerInputs, setAnswerInputs] = useState<Record<string, string>>({});
+    const [answeringId, setAnsweringId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!id) return;
+        const q = query(collection(db, 'objectives', id as string, 'questions'), orderBy('created_at', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            setQuestions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Question)));
+        });
+        return () => unsub();
+    }, [id]);
+
+    const handleAddQuestion = async () => {
+        if (!newQuestionText.trim()) return;
+        setAddingQuestion(true);
+        await addDoc(collection(db, 'objectives', id as string, 'questions'), {
+            question: newQuestionText,
+            creator_id: user?.uid,
+            creator_name: user?.displayName || user?.email?.split('@')[0],
+            created_at: serverTimestamp()
+        });
+        setNewQuestionText('');
+        setShowQuestionForm(false);
+        setAddingQuestion(false);
+    };
+
+    const handleAnswerQuestion = async (qId: string) => {
+        const answer = answerInputs[qId]?.trim();
+        if (!answer) return;
+        setAnsweringId(qId);
+        await updateDoc(doc(db, 'objectives', id as string, 'questions', qId), {
+            answer,
+            answered_by: user?.displayName || user?.email?.split('@')[0],
+            answered_at: serverTimestamp()
+        });
+        setAnswerInputs(prev => ({ ...prev, [qId]: '' }));
+        setAnsweringId(null);
+    };
+
+    const handleDeleteQuestion = async (qId: string) => {
+        await deleteDoc(doc(db, 'objectives', id as string, 'questions', qId));
+    };
+
+    // ─── FOCUS DU JOUR ─────────────────────────────────────────────────────
+    type FocusItem = { id: string; user_id: string; user_name: string; focus: string; date: string; created_at: any };
+    const [dailyFocusItems, setDailyFocusItems] = useState<FocusItem[]>([]);
+    const [myFocusText, setMyFocusText] = useState('');
+    const [savingFocus, setSavingFocus] = useState(false);
+    const focusInitialized = useRef(false);
+
+    useEffect(() => {
+        if (!id || !user?.uid) return;
+        focusInitialized.current = false;
+        const today = new Date().toISOString().split('T')[0];
+        const q = query(collection(db, 'objectives', id as string, 'daily_focus'), where('date', '==', today));
+        const unsub = onSnapshot(q, (snap) => {
+            const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as FocusItem)).sort((a, b) => (a.created_at?.seconds ?? 0) - (b.created_at?.seconds ?? 0));
+            setDailyFocusItems(items);
+            if (!focusInitialized.current) {
+                const mine = items.find(f => f.user_id === user?.uid);
+                if (mine) setMyFocusText(mine.focus);
+                focusInitialized.current = true;
+            }
+        });
+        return () => { unsub(); focusInitialized.current = false; };
+    }, [id, user?.uid]);
+
+    const [focusSaved, setFocusSaved] = useState(false);
+    const [focusError, setFocusError] = useState('');
+
+    const handleSaveFocus = async () => {
+        console.log('[Focus] click — myFocusText:', JSON.stringify(myFocusText), '| uid:', user?.uid, '| id:', id);
+        if (!myFocusText.trim()) { setFocusError('Écrivez votre focus avant de sauvegarder.'); return; }
+        if (!user?.uid || !id) { setFocusError('Erreur: utilisateur ou salon introuvable.'); return; }
+        setSavingFocus(true);
+        setFocusError('');
+        setFocusSaved(false);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const docId = `${today}_${user.uid}`;
+            console.log('[Focus] writing to daily_focus/', docId);
+            await setDoc(doc(db, 'objectives', id as string, 'daily_focus', docId), {
+                user_id: user.uid,
+                user_name: user.displayName || user.email?.split('@')[0] || 'Anonyme',
+                focus: myFocusText,
+                date: today,
+                created_at: serverTimestamp()
+            });
+            console.log('[Focus] saved OK');
+            setFocusSaved(true);
+            setMyFocusText('');
+            setTimeout(() => setFocusSaved(false), 3000);
+        } catch (err: any) {
+            console.error('[Focus] error:', err);
+            setFocusError(err?.message || 'Erreur lors de la sauvegarde.');
+        } finally {
+            setSavingFocus(false);
+        }
+    };
+
+    // ─── FOCUS DELETE / EDIT ───────────────────────────────────────────────
+    const handleDeleteFocus = async () => {
+        if (!user?.uid || !id) return;
+        const today = new Date().toISOString().split('T')[0];
+        await deleteDoc(doc(db, 'objectives', id as string, 'daily_focus', `${today}_${user.uid}`));
+    };
+
+    // ─── ROADMAP ─────────────────────────────────────────────────────────────
+    type RoadmapPhase = { id: string; title: string; color: string; start_date: string; end_date: string; description: string; creator_id: string; creator_name: string; created_at: any };
+    type RoadmapMilestone = { id: string; title: string; date: string; type: 'milestone' | 'deadline' | 'launch' | 'review'; phase_id?: string; creator_id: string; creator_name: string; created_at: any };
+    const [roadmapPhases, setRoadmapPhases] = useState<RoadmapPhase[]>([]);
+    const [roadmapMilestones, setRoadmapMilestones] = useState<RoadmapMilestone[]>([]);
+    const [showPhaseForm, setShowPhaseForm] = useState(false);
+    const [showMilestoneForm, setShowMilestoneForm] = useState(false);
+    const [newPhase, setNewPhase] = useState({ title: '', color: '#6366f1', start_date: '', end_date: '', description: '' });
+    const [newMilestone, setNewMilestone] = useState({ title: '', date: '', type: 'milestone' as 'milestone' | 'deadline' | 'launch' | 'review', phase_id: '' });
+    const [addingPhase, setAddingPhase] = useState(false);
+    const [addingMilestone, setAddingMilestone] = useState(false);
+    const [rmOffset, setRmOffset] = useState(0);
+    const [rmZoom, setRmZoom] = useState(130);
+    const [rmSelected, setRmSelected] = useState<{type:'phase'|'milestone';data:any}|null>(null);
+    const [rmPickerOpen, setRmPickerOpen] = useState<string|null>(null);
+    const [rmPickerCal, setRmPickerCal] = useState({y:new Date().getFullYear(),m:new Date().getMonth()});
+    const [rmView, setRmView] = useState<'week'|'month'|'quarter'>('month');
+    const [rmEditing, setRmEditing] = useState<{type:'phase'|'milestone';data:any}|null>(null);
+    const [editData, setEditData] = useState<any>({});
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [rmAiOpen, setRmAiOpen] = useState(false);
+    const [rmAiPrompt, setRmAiPrompt] = useState('');
+    const [rmAiGenerating, setRmAiGenerating] = useState(false);
+    const [rmAiPreview, setRmAiPreview] = useState<{phases:any[];milestones:any[]}|null>(null);
+    const [rmAiApplying, setRmAiApplying] = useState(false);
+
+    useEffect(() => {
+        if (!id) return;
+        const unsubP = onSnapshot(query(collection(db, 'objectives', id as string, 'roadmap_phases'), orderBy('start_date', 'asc')), snap => {
+            setRoadmapPhases(snap.docs.map(d => ({ id: d.id, ...d.data() } as RoadmapPhase)));
+        });
+        const unsubM = onSnapshot(query(collection(db, 'objectives', id as string, 'roadmap_milestones'), orderBy('date', 'asc')), snap => {
+            setRoadmapMilestones(snap.docs.map(d => ({ id: d.id, ...d.data() } as RoadmapMilestone)));
+        });
+        return () => { unsubP(); unsubM(); };
+    }, [id]);
+
+    const handleAddPhase = async () => {
+        if (!newPhase.title.trim() || !newPhase.start_date || !newPhase.end_date || !user?.uid) return;
+        setAddingPhase(true);
+        try {
+            await addDoc(collection(db, 'objectives', id as string, 'roadmap_phases'), { ...newPhase, creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'Anonyme', created_at: serverTimestamp() });
+            setNewPhase({ title: '', color: '#6366f1', start_date: '', end_date: '', description: '' });
+            setShowPhaseForm(false);
+        } catch (err) { console.error(err); }
+        setAddingPhase(false);
+    };
+    const handleDeletePhase = async (phaseId: string) => { await deleteDoc(doc(db, 'objectives', id as string, 'roadmap_phases', phaseId)); };
+    const handleAddMilestone = async () => {
+        if (!newMilestone.title.trim() || !newMilestone.date || !user?.uid) return;
+        setAddingMilestone(true);
+        try {
+            await addDoc(collection(db, 'objectives', id as string, 'roadmap_milestones'), { ...newMilestone, creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'Anonyme', created_at: serverTimestamp() });
+            setNewMilestone({ title: '', date: '', type: 'milestone', phase_id: '' });
+            setShowMilestoneForm(false);
+        } catch (err) { console.error(err); }
+        setAddingMilestone(false);
+    };
+    const handleDeleteMilestone = async (msId: string) => { await deleteDoc(doc(db, 'objectives', id as string, 'roadmap_milestones', msId)); };
+    const handleSaveEdit = async () => {
+        if (!id || !rmEditing) return;
+        setSavingEdit(true);
+        try {
+            if (rmEditing.type === 'phase') {
+                await updateDoc(doc(db, 'objectives', id as string, 'roadmap_phases', rmEditing.data.id), { title: editData.title, color: editData.color, start_date: editData.start_date, end_date: editData.end_date, description: editData.description || '' });
+            } else {
+                await updateDoc(doc(db, 'objectives', id as string, 'roadmap_milestones', rmEditing.data.id), { title: editData.title, date: editData.date, type: editData.type, phase_id: editData.phase_id || '' });
+            }
+            setRmEditing(null);
+        } catch (err) { console.error(err); }
+        setSavingEdit(false);
+    };
+    const handleGenerateRoadmap = async () => {
+        if (!id) return;
+        setRmAiGenerating(true);
+        setRmAiPreview(null);
+        try {
+            const res = await fetch('/api/generate-roadmap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'objective',
+                    title: objective?.title,
+                    description: objective?.description,
+                    category: objective?.category,
+                    members: memberships.map((m: any) => m.user_name || m.display_name || 'Membre'),
+                    milestones: milestones.map(m => ({ text: m.text, completed: m.completed })),
+                    resources: resources.map((r: any) => r.text),
+                    decisions: decisions.map((d: any) => ({ title: d.title, description: d.description, outcome: d.outcome })),
+                    announcements: announcements.map((a: any) => ({ title: a.title, content: a.content })),
+                    questions: questions.filter((q: any) => q.answer).map((q: any) => ({ question: q.question, answer: q.answer })),
+                    focuses: dailyFocusItems.map((f: any) => f.focus),
+                    userPrompt: rmAiPrompt,
+                    today: new Date().toISOString(),
+                }),
+            });
+            const data = await res.json();
+            setRmAiPreview(data);
+        } catch (err) { console.error(err); }
+        setRmAiGenerating(false);
+    };
+    const handleApplyRoadmap = async () => {
+        if (!rmAiPreview || !id || !user?.uid) return;
+        setRmAiApplying(true);
+        try {
+            const phaseIds: string[] = [];
+            for (const phase of rmAiPreview.phases) {
+                const ref = await addDoc(collection(db, 'objectives', id as string, 'roadmap_phases'), { ...phase, creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'IA', created_at: serverTimestamp() });
+                phaseIds.push(ref.id);
+            }
+            for (const ms of rmAiPreview.milestones) {
+                const phaseId = ms.phase_index >= 0 && ms.phase_index < phaseIds.length ? phaseIds[ms.phase_index] : '';
+                await addDoc(collection(db, 'objectives', id as string, 'roadmap_milestones'), { title: ms.title, date: ms.date, type: ms.type || 'milestone', phase_id: phaseId, creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'IA', created_at: serverTimestamp() });
+            }
+            setRmAiOpen(false); setRmAiPreview(null); setRmAiPrompt('');
+        } catch (err) { console.error(err); }
+        setRmAiApplying(false);
+    };
+
+    // ─── ANNOUNCEMENT COMMENTS ─────────────────────────────────────────────
+    const [annComments, setAnnComments] = useState<Record<string, any[]>>({});
+    const [openAnnComments, setOpenAnnComments] = useState<Set<string>>(new Set());
+    const [annCommentInputs, setAnnCommentInputs] = useState<Record<string, string>>({});
+    const annCommentUnsubs = useRef<Record<string, () => void>>({});
+
+    const toggleAnnComments = (annId: string) => {
+        setOpenAnnComments(prev => {
+            const next = new Set(prev);
+            if (next.has(annId)) { next.delete(annId); } else {
+                next.add(annId);
+                if (!annCommentUnsubs.current[annId]) {
+                    const unsub = onSnapshot(
+                        query(collection(db, 'objectives', id as string, 'announcements', annId, 'comments'), orderBy('created_at', 'asc')),
+                        snap => setAnnComments(p => ({ ...p, [annId]: snap.docs.map(d => ({ id: d.id, ...d.data() })) }))
+                    );
+                    annCommentUnsubs.current[annId] = unsub;
+                }
+            }
+            return next;
+        });
+    };
+
+    const handleAddAnnComment = async (annId: string) => {
+        const text = annCommentInputs[annId]?.trim();
+        if (!text || !user?.uid) return;
+        await addDoc(collection(db, 'objectives', id as string, 'announcements', annId, 'comments'), {
+            text, creator_id: user.uid,
+            creator_name: user.displayName || user.email?.split('@')[0] || 'Anonyme',
+            created_at: serverTimestamp()
+        });
+        setAnnCommentInputs(p => ({ ...p, [annId]: '' }));
+    };
+
+    // ─── DECISION COMMENTS + OUTCOME ──────────────────────────────────────
+    const [decComments, setDecComments] = useState<Record<string, any[]>>({});
+    const [openDecComments, setOpenDecComments] = useState<Set<string>>(new Set());
+    const [decCommentInputs, setDecCommentInputs] = useState<Record<string, string>>({});
+    const decCommentUnsubs = useRef<Record<string, () => void>>({});
+
+    const toggleDecComments = (decId: string) => {
+        setOpenDecComments(prev => {
+            const next = new Set(prev);
+            if (next.has(decId)) { next.delete(decId); } else {
+                next.add(decId);
+                if (!decCommentUnsubs.current[decId]) {
+                    const unsub = onSnapshot(
+                        query(collection(db, 'objectives', id as string, 'decisions', decId, 'comments'), orderBy('created_at', 'asc')),
+                        snap => setDecComments(p => ({ ...p, [decId]: snap.docs.map(d => ({ id: d.id, ...d.data() })) }))
+                    );
+                    decCommentUnsubs.current[decId] = unsub;
+                }
+            }
+            return next;
+        });
+    };
+
+    const handleAddDecComment = async (decId: string) => {
+        const text = decCommentInputs[decId]?.trim();
+        if (!text || !user?.uid) return;
+        await addDoc(collection(db, 'objectives', id as string, 'decisions', decId, 'comments'), {
+            text, creator_id: user.uid,
+            creator_name: user.displayName || user.email?.split('@')[0] || 'Anonyme',
+            created_at: serverTimestamp()
+        });
+        setDecCommentInputs(p => ({ ...p, [decId]: '' }));
+    };
+
+    const handleSetDecisionOutcome = async (decId: string, outcome: 'approved' | 'rejected' | 'pending') => {
+        await updateDoc(doc(db, 'objectives', id as string, 'decisions', decId), { outcome });
+    };
+
     if (loading) return <div className="container py-16 text-center">{t('room_loading')}</div>;
     if (!objective) return null;
 
@@ -1112,34 +1540,6 @@ export default function ObjectiveDetail() {
             }}>
                 <div style={{ position: 'absolute', top: '-120px', right: '-80px', width: '500px', height: '400px', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
                 <div style={{ position: 'absolute', bottom: '-80px', left: '30%', width: '350px', height: '250px', background: 'radial-gradient(circle, rgba(236,72,153,0.07) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
-
-                {/* Creator action buttons */}
-                {user?.uid === objective.creator_id && (
-                    <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10, display: 'flex', gap: '8px' }}>
-                        <button
-                            onClick={() => {
-                                setEditObjTitle(objective.title);
-                                setEditObjDesc(objective.description || '');
-                                setEditObjHours(objective.target_hours.toString());
-                                setEditObjFreq(objective.goal_frequency || 'total');
-                                setEditObjCats(Array.isArray(objective.category) ? [...objective.category] : [objective.category]);
-                                setEditObjLearningLink(objective.learning_link || '');
-                                setEditObjPublic(objective.is_public || false);
-                                setShowEditObjModal(true);
-                                setNavbarVisible(false);
-                            }}
-                            style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
-                        >
-                            <Edit3 size={14} /> Modifier
-                        </button>
-                        <button
-                            onClick={handleDeleteObjective}
-                            style={{ padding: '7px 12px', background: 'rgba(239,68,68,0.07)', borderRadius: '10px', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    </div>
-                )}
 
                 {/* 2-column layout */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '4rem', alignItems: 'center', position: 'relative', zIndex: 1 }}>
@@ -1228,6 +1628,36 @@ export default function ObjectiveDetail() {
 
                     {/* RIGHT: stats + progress */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {user?.uid === objective.creator_id && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                    onClick={() => {
+                                        setEditObjTitle(objective.title);
+                                        setEditObjDesc(objective.description || '');
+                                        setEditObjHours(objective.target_hours.toString());
+                                        setEditObjFreq(objective.goal_frequency || 'total');
+                                        setEditObjCats(Array.isArray(objective.category) ? [...objective.category] : [objective.category]);
+                                        setEditObjLearningLink(objective.learning_link || '');
+                                        setEditObjPublic(objective.is_public || false);
+                                        setShowEditObjModal(true);
+                                        setNavbarVisible(false);
+                                    }}
+                                    style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#a1a1aa'; }}
+                                >
+                                    <Edit3 size={14} /> Modifier
+                                </button>
+                                <button
+                                    onClick={handleDeleteObjective}
+                                    style={{ padding: '7px 12px', background: 'rgba(239,68,68,0.07)', borderRadius: '10px', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.07)'; }}
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.875rem' }}>
                             <div style={{ background: 'rgba(99,102,241,0.09)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '16px', padding: '1.25rem 1rem', textAlign: 'center' }}>
                                 <div style={{ fontSize: '1.85rem', fontWeight: 800, color: '#818cf8', lineHeight: 1 }}>{fmtHours(totalCompleted)}</div>
@@ -1297,6 +1727,12 @@ export default function ObjectiveDetail() {
                     { id: 'milestones', Icon: CheckSquare,     label: t('room_tab_milestones') },
                     { id: 'polls',      Icon: BarChart2,       label: t('room_tab_polls') },
                     { id: 'resources',  Icon: LinkIcon,        label: t('room_tab_resources') },
+                    { id: 'notes',      Icon: StickyNote,      label: 'Notes' },
+                    { id: 'decisions',  Icon: Scale,           label: 'Décisions' },
+                    { id: 'annonces',   Icon: Megaphone,       label: 'Annonces' },
+                    { id: 'qa',         Icon: HelpCircle,      label: 'Q&A' },
+                    { id: 'focus',      Icon: Crosshair,       label: 'Focus' },
+                    { id: 'roadmap',    Icon: Map,             label: 'Roadmap' },
                 ] as const).map(({ id, Icon, label }) => {
                     const active = activeTab === id;
                     return (
@@ -1361,8 +1797,8 @@ export default function ObjectiveDetail() {
                                     <h4 className="m-0 group-hover:text-white transition-colors" style={{ fontSize: '1.05rem', color: '#f4f4f5', marginBottom: '2px' }}>
                                         Accéder à la formation
                                     </h4>
-                                    <p className="m-0 truncate" style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', maxWidth: '280px' }}>
-                                        {objective.learning_link}
+                                    <p className="m-0" style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '280px' }}>
+                                        {(() => { try { const u = new URL(objective.learning_link.startsWith('http') ? objective.learning_link : `https://${objective.learning_link}`); return u.hostname.replace(/^www\./, ''); } catch { return objective.learning_link; } })()}
                                     </p>
                                 </div>
                                 <div style={{ 
@@ -2168,542 +2604,2153 @@ export default function ObjectiveDetail() {
                 {/* TAB: POLLS */}
                 {activeTab === 'polls' && (
                     <div className="tab-pane active fade-enter">
-                        <div className="flex justify-between items-center mb-6" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
-                            <h3 className="flex items-center gap-2 m-0"><BarChart2 className="text-primary" /> Sondages du Salon</h3>
-                            <button className="btn btn-primary btn-sm shadow-glow" onClick={() => setShowPollForm(v => !v)}>
-                                {showPollForm ? 'Annuler' : '+ Créer un sondage'}
-                            </button>
-                        </div>
+                        <style>{`
+                            .pl-wrap { font-family: 'DM Sans', system-ui; }
+                            .pl-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+                            .pl-title { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', system-ui; font-size: 1.15rem; font-weight: 700; color: #eeeef0; margin: 0; letter-spacing: -0.02em; }
+                            .pl-title-icon { width: 34px; height: 34px; border-radius: 10px; background: rgba(99,102,241,0.14); border: 1px solid rgba(99,102,241,0.28); display: flex; align-items: center; justify-content: center; color: #818cf8; flex-shrink: 0; }
+                            .pl-btn-primary { padding: 7px 16px; border-radius: 10px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 12px rgba(99,102,241,0.35); }
+                            .pl-btn-primary:hover { box-shadow: 0 5px 18px rgba(99,102,241,0.5); transform: translateY(-1px); }
+                            .pl-form-panel { border-radius: 16px; padding: 22px; background: rgba(12,12,16,0.85); border: 1px solid rgba(99,102,241,0.3); margin-bottom: 22px; animation: pl-in 0.25s cubic-bezier(0.22,1,0.36,1); }
+                            .pl-form-head { font-family: 'Outfit', system-ui; font-weight: 700; font-size: 1rem; color: #a5b4fc; margin: 0 0 18px; }
+                            .pl-label { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 7px; }
+                            .pl-input { width: 100%; padding: 11px 14px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 11px; color: #eeeeef; font-size: 0.92rem; font-family: 'DM Sans', system-ui; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+                            .pl-input:focus { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.04); }
+                            .pl-input::placeholder { color: rgba(255,255,255,0.2); }
+                            .pl-opt-row { display: flex; gap: 8px; align-items: center; }
+                            .pl-opt-num { width: 22px; height: 22px; border-radius: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25); display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 700; color: #818cf8; flex-shrink: 0; }
+                            .pl-btn-ghost-sm { padding: 6px 12px; border-radius: 8px; font-size: 0.76rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.45); font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 5px; }
+                            .pl-btn-ghost-sm:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.7); }
+                            .pl-btn-del-sm { padding: 5px 8px; border-radius: 7px; font-size: 0.76rem; cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.25); font-family: 'DM Sans', system-ui; transition: all 0.2s; }
+                            .pl-btn-del-sm:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); color: #f87171; }
+                            .pl-btn-submit { padding: 10px 24px; border-radius: 11px; font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 7px; box-shadow: 0 3px 14px rgba(99,102,241,0.38); }
+                            .pl-btn-submit:hover { box-shadow: 0 5px 20px rgba(99,102,241,0.55); transform: translateY(-1px); }
+                            .pl-btn-submit:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+                            .pl-list { display: flex; flex-direction: column; gap: 16px; }
+                            .pl-card { border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07); background: rgba(16,16,22,0.85); animation: pl-in 0.3s cubic-bezier(0.22,1,0.36,1); transition: border-color 0.2s; }
+                            .pl-card:hover { border-color: rgba(255,255,255,0.12); }
+                            .pl-card.closed { opacity: 0.62; }
+                            .pl-card.active { border-color: rgba(99,102,241,0.3); }
+                            .pl-card-head { padding: 18px 20px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+                            .pl-question { font-family: 'Outfit', system-ui; font-size: 1.05rem; font-weight: 700; color: #eeeef0; margin: 0 0 5px; line-height: 1.35; }
+                            .pl-meta { font-size: 0.75rem; color: rgba(255,255,255,0.32); display: flex; align-items: center; gap: 8px; }
+                            .pl-badge-closed { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.25); color: #94a3b8; }
+                            .pl-badge-open { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.28); color: #818cf8; }
+                            .pl-btn-toggle { padding: 5px 12px; border-radius: 8px; font-size: 0.74rem; font-weight: 600; cursor: pointer; font-family: 'DM Sans', system-ui; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); }
+                            .pl-btn-toggle:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+                            .pl-options { padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+                            .pl-option { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; transition: all 0.2s; border: 1.5px solid rgba(255,255,255,0.07); }
+                            .pl-option:hover:not(.voted):not(.closed-opt) { border-color: rgba(99,102,241,0.3); }
+                            .pl-option.voted { border-color: rgba(99,102,241,0.55); }
+                            .pl-option.winner { border-color: rgba(251,191,36,0.5); }
+                            .pl-option.closed-opt { cursor: default; }
+                            .pl-opt-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 8px; transition: width 0.6s cubic-bezier(0.22,1,0.36,1); pointer-events: none; }
+                            .pl-opt-content { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 11px 14px; }
+                            .pl-opt-check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+                            .pl-opt-text { flex: 1; font-size: 0.88rem; font-weight: 500; color: rgba(255,255,255,0.78); transition: color 0.2s; }
+                            .pl-opt-text.voted-text { font-weight: 700; color: #eeeef0; }
+                            .pl-opt-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+                            .pl-opt-pct { font-family: 'Outfit', system-ui; font-size: 0.88rem; font-weight: 800; color: rgba(255,255,255,0.55); min-width: 36px; text-align: right; }
+                            .pl-opt-pct.voted-pct { color: #818cf8; }
+                            .pl-empty { border-radius: 16px; padding: 52px 24px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.08); text-align: center; }
+                            @keyframes pl-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+                        `}</style>
 
-                        {showPollForm && (
-                            <form onSubmit={handleCreatePoll} className="card card-glass mb-6 flex flex-col gap-4 fade-enter" style={{ border: '1px solid var(--color-primary)', background: 'rgba(99,102,241,0.04)' }}>
-                                <h4 className="m-0 text-primary">Nouveau sondage</h4>
-                                <div className="flex flex-col gap-1">
-                                    <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Question*</label>
-                                    <input className="input" placeholder="Ex: Quel jour convient le mieux pour la prochaine session ?" value={newPoll.question} onChange={e => setNewPoll(p => ({ ...p, question: e.target.value }))} required />
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                    <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>Options* (min. 2)</label>
-                                    {newPoll.options.map((opt, i) => (
-                                        <div key={i} className="flex gap-2 items-center">
-                                            <input
-                                                className="input flex-1"
-                                                placeholder={`Option ${i + 1}`}
-                                                value={opt}
-                                                onChange={e => setNewPoll(p => { const opts = [...p.options]; opts[i] = e.target.value; return { ...p, options: opts }; })}
-                                            />
-                                            {newPoll.options.length > 2 && (
-                                                <button type="button" className="btn btn-sm btn-ghost text-secondary" onClick={() => setNewPoll(p => ({ ...p, options: p.options.filter((_, j) => j !== i) }))}>✕</button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {newPoll.options.length < 6 && (
-                                        <button type="button" className="btn btn-sm btn-ghost text-secondary" style={{ alignSelf: 'flex-start' }} onClick={() => setNewPoll(p => ({ ...p, options: [...p.options, ''] }))}>+ Ajouter une option</button>
+                        <div className="pl-wrap">
+                            <div className="pl-header">
+                                <h3 className="pl-title">
+                                    <span className="pl-title-icon"><BarChart2 size={16} /></span>
+                                    Sondages du Salon
+                                    {polls.length > 0 && (
+                                        <span style={{ fontSize: '0.72rem', padding: '2px 9px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 700, marginLeft: 4 }}>
+                                            {polls.length}
+                                        </span>
                                     )}
-                                </div>
-                                <button type="submit" className="btn btn-primary" disabled={creatingPoll}>
-                                    {creatingPoll ? 'Création...' : '✅ Créer le sondage'}
+                                </h3>
+                                <button className="pl-btn-primary" onClick={() => setShowPollForm(v => !v)}>
+                                    {showPollForm ? <><X size={13} /> Annuler</> : <><BarChart2 size={13} /> Créer un sondage</>}
                                 </button>
-                            </form>
-                        )}
-
-                        {polls.length === 0 ? (
-                            <div className="card card-glass text-center py-16">
-                                <BarChart2 size={48} className="text-primary mx-auto mb-4 opacity-50" />
-                                <h3 className="text-secondary mb-2">Aucun sondage créé</h3>
-                                <p>Créez un sondage pour recueillir l'avis de votre groupe sur n'importe quel sujet.</p>
                             </div>
-                        ) : (
-                            <div className="flex flex-col gap-5">
-                                {polls.map((poll, idx) => {
-                                    const totalVotes = poll.options.reduce((sum, o) => sum + o.votes.length, 0);
-                                    const userVotedFor = poll.options.findIndex(o => user && o.votes.includes(user.uid));
-                                    const winnerVotes = Math.max(...poll.options.map(o => o.votes.length));
-                                    return (
-                                        <div key={poll.id} className="card card-glass fade-enter" style={{ animationDelay: `${idx * 0.06}s`, border: poll.closed ? '1px solid var(--color-border)' : '1px solid rgba(99,102,241,0.25)', opacity: poll.closed ? 0.7 : 1 }}>
-                                            <div className="flex justify-between items-start gap-3 flex-wrap mb-4">
-                                                <div>
-                                                    {poll.closed && <span className="badge text-secondary" style={{ fontSize: '0.7rem', padding: '2px 8px', marginBottom: '4px', display: 'inline-block' }}>🔒 Terminé</span>}
-                                                    <h4 className="m-0">{poll.question}</h4>
-                                                    <p className="text-sm text-secondary m-0 mt-1">Par {poll.creator_name} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
-                                                </div>
-                                                {user && poll.creator_id === user.uid && (
-                                                    <button
-                                                        className={`btn btn-sm ${poll.closed ? 'btn-outline' : 'btn-ghost text-secondary'}`}
-                                                        onClick={() => handleClosePoll(poll)}
-                                                        style={{ fontSize: '0.8rem', flexShrink: 0 }}
-                                                    >
-                                                        {poll.closed ? '🔓 Rouvrir' : '🔒 Clôturer'}
+
+                            {showPollForm && (
+                                <div className="pl-form-panel">
+                                    <div className="pl-form-head">Nouveau sondage</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <div>
+                                            <label className="pl-label">Question <span style={{ color: '#f87171' }}>*</span></label>
+                                            <input
+                                                className="pl-input"
+                                                placeholder="Ex : Quel jour convient le mieux pour la prochaine session ?"
+                                                value={newPoll.question}
+                                                onChange={e => setNewPoll(p => ({ ...p, question: e.target.value }))}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="pl-label">Options <span style={{ color: '#f87171' }}>*</span> <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>min. 2, max. 6</span></label>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {newPoll.options.map((opt, i) => (
+                                                    <div key={i} className="pl-opt-row">
+                                                        <div className="pl-opt-num">{i + 1}</div>
+                                                        <input
+                                                            className="pl-input"
+                                                            style={{ flex: 1 }}
+                                                            placeholder={`Option ${i + 1}`}
+                                                            value={opt}
+                                                            onChange={e => setNewPoll(p => { const opts = [...p.options]; opts[i] = e.target.value; return { ...p, options: opts }; })}
+                                                        />
+                                                        {newPoll.options.length > 2 && (
+                                                            <button type="button" className="pl-btn-del-sm" onClick={() => setNewPoll(p => ({ ...p, options: p.options.filter((_, j) => j !== i) }))}>
+                                                                <X size={13} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {newPoll.options.length < 6 && (
+                                                    <button type="button" className="pl-btn-ghost-sm" onClick={() => setNewPoll(p => ({ ...p, options: [...p.options, ''] }))}>
+                                                        + Ajouter une option
                                                     </button>
                                                 )}
                                             </div>
-
-                                            <div className="flex flex-col gap-3">
-                                                {poll.options.map((opt, oi) => {
-                                                    const pct = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
-                                                    const isMyVote = user && opt.votes.includes(user.uid);
-                                                    const isWinner = opt.votes.length === winnerVotes && winnerVotes > 0 && poll.closed;
-                                                    return (
-                                                        <div key={oi}>
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={poll.closed}
-                                                                    className="flex items-center gap-2 text-left w-full"
-                                                                    style={{ background: 'none', border: 'none', cursor: poll.closed ? 'default' : 'pointer', padding: 0 }}
-                                                                    onClick={() => !poll.closed && handleVote(poll, oi)}
-                                                                >
-                                                                    <div style={{
-                                                                        width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                                                                        border: `2px solid ${isMyVote ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                                                                        background: isMyVote ? 'var(--color-primary)' : 'transparent',
-                                                                        transition: 'all 0.2s ease',
-                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                                    }}>
-                                                                        {isMyVote && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#fff' }} />}
-                                                                    </div>
-                                                                    <span style={{ fontWeight: isMyVote ? 600 : 400, flex: 1 }}>{opt.text}</span>
-                                                                    {isWinner && <span style={{ fontSize: '0.75rem' }}>🏆</span>}
-                                                                </button>
-                                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isMyVote ? 'var(--color-primary)' : 'inherit', minWidth: '36px', textAlign: 'right' }}>{pct}%</span>
-                                                            </div>
-                                                            {/* Progress bar */}
-                                                            <div style={{ height: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                                                                <div style={{
-                                                                    height: '100%',
-                                                                    width: `${pct}%`,
-                                                                    borderRadius: '4px',
-                                                                    background: isMyVote
-                                                                        ? 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))'
-                                                                        : 'rgba(255,255,255,0.15)',
-                                                                    transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)',
-                                                                    boxShadow: isMyVote ? '0 0 8px rgba(99,102,241,0.5)' : 'none'
-                                                                }} />
-                                                            </div>
-                                                            <div style={{ fontSize: '0.75rem', opacity: 0.4, marginTop: '2px' }}>{opt.votes.length} vote{opt.votes.length !== 1 ? 's' : ''}</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                            <button
+                                                type="button"
+                                                className="pl-btn-submit"
+                                                disabled={creatingPoll || !newPoll.question.trim() || newPoll.options.filter(o => o.trim()).length < 2}
+                                                onClick={(e) => handleCreatePoll(e as any)}
+                                            >
+                                                {creatingPoll ? 'Création...' : 'Créer le sondage'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {polls.length === 0 ? (
+                                <div className="pl-empty">
+                                    <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#818cf8' }}>
+                                        <BarChart2 size={24} />
+                                    </div>
+                                    <div style={{ fontFamily: 'Outfit, system-ui', fontWeight: 700, fontSize: '1rem', color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Aucun sondage créé</div>
+                                    <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.25)' }}>Créez un sondage pour recueillir l'avis de votre groupe.</div>
+                                </div>
+                            ) : (
+                                <div className="pl-list">
+                                    {polls.map((poll, idx) => {
+                                        const totalVotes = poll.options.reduce((sum: number, o: any) => sum + o.votes.length, 0);
+                                        const winnerVotes = Math.max(...poll.options.map((o: any) => o.votes.length));
+                                        return (
+                                            <div
+                                                key={poll.id}
+                                                className={`pl-card${poll.closed ? ' closed' : ' active'}`}
+                                                style={{ animationDelay: `${idx * 0.07}s` }}
+                                            >
+                                                <div className="pl-card-head">
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                                                                {poll.closed
+                                                                    ? <span className="pl-badge-closed">🔒 Terminé</span>
+                                                                    : <span className="pl-badge-open">● Ouvert</span>
+                                                                }
+                                                                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.25)' }}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
+                                                            </div>
+                                                            <div className="pl-question">{poll.question}</div>
+                                                            <div className="pl-meta">
+                                                                <span>Par {poll.creator_name}</span>
+                                                            </div>
+                                                        </div>
+                                                        {user && poll.creator_id === user.uid && (
+                                                            <button className="pl-btn-toggle" onClick={() => handleClosePoll(poll)}>
+                                                                {poll.closed ? '🔓 Rouvrir' : '🔒 Clôturer'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="pl-options">
+                                                    {poll.options.map((opt: any, oi: number) => {
+                                                        const pct = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
+                                                        const isMyVote = user && opt.votes.includes(user.uid);
+                                                        const isWinner = opt.votes.length === winnerVotes && winnerVotes > 0 && poll.closed;
+                                                        return (
+                                                            <div
+                                                                key={oi}
+                                                                className={`pl-option${isMyVote ? ' voted' : ''}${isWinner ? ' winner' : ''}${poll.closed ? ' closed-opt' : ''}`}
+                                                                onClick={() => !poll.closed && handleVote(poll, oi)}
+                                                            >
+                                                                <div
+                                                                    className="pl-opt-fill"
+                                                                    style={{
+                                                                        width: `${pct}%`,
+                                                                        background: isWinner
+                                                                            ? 'rgba(251,191,36,0.1)'
+                                                                            : isMyVote
+                                                                                ? 'rgba(99,102,241,0.14)'
+                                                                                : 'rgba(255,255,255,0.04)',
+                                                                    }}
+                                                                />
+                                                                <div className="pl-opt-content">
+                                                                    <div
+                                                                        className="pl-opt-check"
+                                                                        style={{
+                                                                            borderColor: isMyVote ? '#6366f1' : isWinner ? '#fbbf24' : 'rgba(255,255,255,0.18)',
+                                                                            background: isMyVote ? '#6366f1' : 'transparent',
+                                                                        }}
+                                                                    >
+                                                                        {isMyVote && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
+                                                                        {isWinner && !isMyVote && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fbbf24' }} />}
+                                                                    </div>
+                                                                    <span className={`pl-opt-text${isMyVote ? ' voted-text' : ''}`}>{opt.text}</span>
+                                                                    <div className="pl-opt-right">
+                                                                        {isWinner && <span style={{ fontSize: '0.82rem' }}>🏆</span>}
+                                                                        <span className={`pl-opt-pct${isMyVote ? ' voted-pct' : ''}`}>{pct}%</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
-
                 {/* TAB: AGENDA */}
                 {activeTab === 'agenda' && (
                     <div className="tab-pane active fade-enter">
-                        <div className="flex justify-between items-center mb-6" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
-                            <h3 className="flex items-center gap-2 m-0"><Calendar className="text-primary" /> {t('agenda_title')}</h3>
-                            <div className="flex gap-2">
-                                {sessions.length > 0 && (
-                                    <button
-                                        className="btn btn-sm btn-ghost text-red-400 hover:bg-red-500/10"
-                                        style={{ fontSize: '0.8rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}
-                                        onClick={handleDeleteAllSessions}
-                                    >
-                                        <Trash2 size={14} /> Tout supprimer
+                        <style>{`
+                            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+                            .ag-wrap { font-family: 'DM Sans', system-ui, sans-serif; }
+                            .ag-header {
+                                display: flex; align-items: center; justify-content: space-between;
+                                margin-bottom: 24px; gap: 12px; flex-wrap: wrap;
+                            }
+                            .ag-title {
+                                display: flex; align-items: center; gap: 10px;
+                                font-family: 'Outfit', system-ui; font-size: 1.15rem;
+                                font-weight: 700; color: #eeeef0; margin: 0;
+                                letter-spacing: -0.02em;
+                            }
+                            .ag-title-icon {
+                                width: 34px; height: 34px; border-radius: 10px;
+                                background: rgba(99,102,241,0.14); border: 1px solid rgba(99,102,241,0.28);
+                                display: flex; align-items: center; justify-content: center;
+                                color: #818cf8; flex-shrink: 0;
+                            }
+                            .ag-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+                            .ag-btn-ghost {
+                                padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600;
+                                cursor: pointer; border: 1px solid rgba(255,255,255,0.09);
+                                background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5);
+                                font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                                display: flex; align-items: center; gap: 6px;
+                            }
+                            .ag-btn-ghost:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+                            .ag-btn-danger {
+                                padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600;
+                                cursor: pointer; border: 1px solid rgba(239,68,68,0.22);
+                                background: rgba(239,68,68,0.06); color: rgba(239,68,68,0.75);
+                                font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                                display: flex; align-items: center; gap: 6px;
+                            }
+                            .ag-btn-danger:hover { background: rgba(239,68,68,0.12); color: #f87171; border-color: rgba(239,68,68,0.4); }
+                            .ag-btn-ai {
+                                padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600;
+                                cursor: pointer; border: 1px solid rgba(99,102,241,0.3);
+                                background: rgba(99,102,241,0.1); color: #a5b4fc;
+                                font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                                display: flex; align-items: center; gap: 6px;
+                            }
+                            .ag-btn-ai:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+                            .ag-btn-primary {
+                                padding: 7px 16px; border-radius: 10px; font-size: 0.82rem; font-weight: 700;
+                                cursor: pointer; border: none;
+                                background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff;
+                                font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                                display: flex; align-items: center; gap: 6px;
+                                box-shadow: 0 3px 12px rgba(99,102,241,0.35);
+                            }
+                            .ag-btn-primary:hover { box-shadow: 0 5px 18px rgba(99,102,241,0.5); transform: translateY(-1px); }
+                            .ag-btn-primary:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
+
+                            /* AI panel */
+                            .ag-ai-panel {
+                                border-radius: 16px; padding: 20px;
+                                background: rgba(99,102,241,0.05);
+                                border: 1px solid rgba(99,102,241,0.25);
+                                margin-bottom: 20px;
+                                animation: ag-in 0.25s cubic-bezier(0.22,1,0.36,1);
+                            }
+                            .ag-ai-head {
+                                display: flex; align-items: center; gap: 8px;
+                                font-family: 'Outfit', system-ui; font-weight: 700;
+                                font-size: 0.98rem; color: #a5b4fc; margin-bottom: 6px;
+                            }
+                            .ag-rhythm-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 14px 0; }
+                            .ag-rhythm-card {
+                                cursor: pointer; border-radius: 12px; padding: 13px 10px;
+                                border: 1.5px solid rgba(255,255,255,0.07);
+                                background: rgba(255,255,255,0.02);
+                                text-align: center; transition: all 0.2s;
+                            }
+                            .ag-rhythm-card:hover { border-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.07); }
+                            .ag-rhythm-card.active {
+                                border-color: rgba(99,102,241,0.65); background: rgba(99,102,241,0.12);
+                                box-shadow: 0 0 0 1px rgba(99,102,241,0.15) inset;
+                                transform: translateY(-2px);
+                            }
+                            .ag-input {
+                                width: 100%; padding: 10px 13px;
+                                background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+                                border-radius: 10px; color: #eeeeef; font-size: 0.88rem;
+                                font-family: 'DM Sans', system-ui; outline: none;
+                                transition: border-color 0.2s; box-sizing: border-box;
+                            }
+                            .ag-input:focus { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.04); }
+                            .ag-input::placeholder { color: rgba(255,255,255,0.2); }
+
+                            /* Form panel */
+                            .ag-form-panel {
+                                border-radius: 16px; padding: 20px;
+                                background: rgba(12,12,16,0.8);
+                                border: 1px solid rgba(99,102,241,0.3);
+                                margin-bottom: 20px;
+                                animation: ag-in 0.25s cubic-bezier(0.22,1,0.36,1);
+                            }
+                            .ag-form-head {
+                                font-family: 'Outfit', system-ui; font-weight: 700;
+                                font-size: 0.98rem; color: #a5b4fc; margin: 0 0 16px;
+                            }
+                            .ag-label {
+                                display: block; font-size: 0.73rem; font-weight: 700;
+                                letter-spacing: 0.07em; text-transform: uppercase;
+                                color: rgba(255,255,255,0.3); margin-bottom: 7px;
+                            }
+                            .ag-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+                            @media (max-width: 680px) { .ag-form-grid { grid-template-columns: 1fr; } }
+
+                            /* Session cards — timeline style */
+                            .ag-list { display: flex; flex-direction: column; gap: 0; position: relative; }
+                            .ag-list::before {
+                                content: ''; position: absolute; left: 55px; top: 12px; bottom: 12px;
+                                width: 1px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.07) 10%, rgba(255,255,255,0.07) 90%, transparent);
+                                pointer-events: none;
+                            }
+                            .ag-card {
+                                display: flex; gap: 0; align-items: stretch;
+                                animation: ag-in 0.3s cubic-bezier(0.22,1,0.36,1);
+                                padding: 6px 0;
+                            }
+                            .ag-date-col {
+                                width: 56px; flex-shrink: 0; display: flex;
+                                flex-direction: column; align-items: center;
+                                padding-top: 14px; position: relative; z-index: 1;
+                            }
+                            .ag-dot {
+                                width: 9px; height: 9px; border-radius: 50%;
+                                border: 2px solid; flex-shrink: 0;
+                                background: #0c0c10; margin-bottom: 6px;
+                            }
+                            .ag-day-num {
+                                font-family: 'Outfit', system-ui; font-size: 1.45rem; font-weight: 800;
+                                line-height: 1; text-align: center;
+                            }
+                            .ag-day-name {
+                                font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+                                letter-spacing: 0.05em; opacity: 0.5; text-align: center;
+                                margin-top: 2px;
+                            }
+                            .ag-month {
+                                font-size: 0.65rem; font-weight: 500; opacity: 0.4;
+                                text-align: center; margin-top: 1px;
+                            }
+                            .ag-time {
+                                font-family: 'Outfit', system-ui; font-size: 0.72rem; font-weight: 700;
+                                margin-top: 5px; text-align: center; opacity: 0.65;
+                            }
+                            .ag-body {
+                                flex: 1; min-width: 0; margin-left: 14px;
+                                background: rgba(18,18,24,0.7);
+                                border-radius: 14px;
+                                border: 1px solid rgba(255,255,255,0.06);
+                                padding: 14px 16px;
+                                transition: border-color 0.2s, box-shadow 0.2s;
+                                display: flex; gap: 12px; align-items: flex-start;
+                            }
+                            .ag-body:hover {
+                                border-color: rgba(255,255,255,0.11);
+                                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                            }
+                            .ag-body.past { opacity: 0.52; }
+                            .ag-body-inner { flex: 1; min-width: 0; }
+                            .ag-pill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 7px; }
+                            .ag-pill {
+                                display: inline-flex; align-items: center; gap: 4px;
+                                padding: 3px 9px; border-radius: 20px;
+                                font-size: 0.7rem; font-weight: 700;
+                                font-family: 'DM Sans', system-ui;
+                            }
+                            .ag-session-title {
+                                font-family: 'Outfit', system-ui; font-weight: 700;
+                                font-size: 0.97rem; color: #eeeef0; margin: 0 0 4px;
+                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                            }
+                            .ag-meta {
+                                font-size: 0.77rem; color: rgba(255,255,255,0.35);
+                                display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+                            }
+                            .ag-meta-sep { opacity: 0.25; }
+                            .ag-desc { font-size: 0.8rem; color: rgba(255,255,255,0.48); margin-top: 8px; line-height: 1.5; word-break: break-word; }
+                            .ag-participants {
+                                display: flex; align-items: center; gap: 6px;
+                                margin-top: 10px;
+                            }
+                            .ag-p-count { font-size: 0.75rem; color: rgba(255,255,255,0.35); font-weight: 600; }
+                            .ag-side { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; align-items: flex-end; }
+                            .ag-join-btn {
+                                padding: 7px 14px; border-radius: 9px; font-size: 0.78rem; font-weight: 700;
+                                cursor: pointer; font-family: 'DM Sans', system-ui;
+                                display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+                                white-space: nowrap;
+                            }
+                            .ag-join-btn.join {
+                                background: linear-gradient(135deg,#6366f1,#4f46e5); border: none; color: #fff;
+                                box-shadow: 0 3px 10px rgba(99,102,241,0.35);
+                            }
+                            .ag-join-btn.join:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.52); transform: translateY(-1px); }
+                            .ag-join-btn.leave {
+                                background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5);
+                            }
+                            .ag-join-btn.leave:hover { background: rgba(255,255,255,0.09); }
+                            .ag-icon-btn {
+                                width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+                                display: flex; align-items: center; justify-content: center;
+                                transition: all 0.2s; border: 1px solid transparent; background: transparent;
+                            }
+                            .ag-icon-btn.del { color: rgba(239,68,68,0.55); }
+                            .ag-icon-btn.del:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); color: #f87171; }
+                            .ag-icon-btn.edit { color: rgba(255,255,255,0.35); }
+                            .ag-icon-btn.edit:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.65); }
+                            .ag-edit-row { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+                            .ag-edit-btns { display: flex; gap: 6px; }
+                            .ag-edit-ok {
+                                flex: 1; padding: 7px; border-radius: 8px; font-size: 0.8rem; font-weight: 700;
+                                background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc;
+                                cursor: pointer; font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                            }
+                            .ag-edit-ok:hover { background: rgba(99,102,241,0.32); }
+                            .ag-edit-ok:disabled { opacity: 0.35; cursor: not-allowed; }
+                            .ag-edit-cancel {
+                                padding: 7px 10px; border-radius: 8px; font-size: 0.8rem;
+                                background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); color: rgba(255,255,255,0.4);
+                                cursor: pointer; font-family: 'DM Sans', system-ui; transition: all 0.2s;
+                            }
+                            .ag-edit-cancel:hover { background: rgba(255,255,255,0.08); }
+                            .ag-empty {
+                                border-radius: 16px; padding: 56px 24px;
+                                background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.08);
+                                text-align: center;
+                            }
+                            @keyframes ag-in {
+                                from { opacity: 0; transform: translateY(10px); }
+                                to   { opacity: 1; transform: none; }
+                            }
+                            @keyframes ag-spin { to { transform: rotate(360deg); } }
+                            .ag-spin { animation: ag-spin 0.9s linear infinite; }
+                        `}</style>
+
+                        <div className="ag-wrap">
+                            {/* Header */}
+                            <div className="ag-header">
+                                <h3 className="ag-title">
+                                    <span className="ag-title-icon"><Calendar size={16} /></span>
+                                    {t('agenda_title')}
+                                    {sessions.length > 0 && (
+                                        <span style={{ fontSize: '0.72rem', padding: '2px 9px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 700, marginLeft: 4 }}>
+                                            {sessions.length}
+                                        </span>
+                                    )}
+                                </h3>
+                                <div className="ag-actions">
+                                    {sessions.length > 0 && (
+                                        <button className="ag-btn-danger" onClick={handleDeleteAllSessions}>
+                                            <Trash2 size={13} /> Tout supprimer
+                                        </button>
+                                    )}
+                                    <button className="ag-btn-ai" onClick={() => { setShowAgendaAI(v => !v); setShowSessionForm(false); }}>
+                                        <Bot size={14} /> {showAgendaAI ? 'Fermer IA' : "Générer avec l'IA"}
                                     </button>
-                                )}
-                                <button
-                                    className="btn btn-sm btn-outline shadow-glow"
-                                    onClick={() => { setShowAgendaAI(v => !v); setShowSessionForm(false); }}
-                                    style={{ fontSize: '0.8rem' }}
-                                >
-                                    {showAgendaAI ? '✕ Fermer IA' : '🤖 Générer avec l\'IA'}
-                                </button>
-                                <button
-                                    className="btn btn-primary btn-sm shadow-glow"
-                                    onClick={() => { setShowSessionForm(v => !v); setShowAgendaAI(false); }}
-                                >
-                                    {showSessionForm ? t('agenda_btn_cancel') : t('agenda_btn_add')}
-                                </button>
+                                    <button className="ag-btn-primary" onClick={() => { setShowSessionForm(v => !v); setShowAgendaAI(false); }}>
+                                        {showSessionForm ? <><X size={13} /> {t('agenda_btn_cancel')}</> : <><Calendar size={13} /> {t('agenda_btn_add')}</>}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        {showAgendaAI && (
-                            <div className="card card-glass mb-6 fade-enter" style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid var(--color-primary)', padding: '1.25rem' }}>
-                                <h4 className="flex items-center gap-2 m-0 mb-3 text-primary"><Bot size={18} /> Générer un planning</h4>
-                                <p className="text-sm opacity-80 mb-4">L'IA va créer des sessions pour les 2 prochaines semaines selon le rythme choisi, parfait pour lancer le salon sans effort.</p>
-
-                                <div className="flex gap-3 mb-4 flex-wrap">
-                                    {[
-                                        { id: 'leger', label: 'Léger', desc: '2-3 sessions' },
-                                        { id: 'regulier', label: 'Régulier', desc: '4-6 sessions' },
-                                        { id: 'intensif', label: 'Intensif', desc: '8-10 sessions' }
-                                    ].map(r => (
-                                        <div
-                                            key={r.id}
-                                            onClick={() => setAgendaRhythm(r.id as any)}
-                                            style={{
-                                                flex: 1, minWidth: '100px', cursor: 'pointer',
-                                                border: agendaRhythm === r.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                                background: agendaRhythm === r.id ? 'rgba(99,102,241,0.1)' : 'transparent',
-                                                padding: '0.75rem', borderRadius: '12px', textAlign: 'center', transition: 'all 0.2s',
-                                                transform: agendaRhythm === r.id ? 'translateY(-2px)' : 'none'
-                                            }}
-                                        >
-                                            <div style={{ fontWeight: 700, color: agendaRhythm === r.id ? 'var(--color-primary)' : 'inherit' }}>{r.label}</div>
-                                            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '2px' }}>{r.desc}</div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mb-4">
-                                    <label style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '4px' }}>Préférences d'horaires (optionnel)</label>
-                                    <input
-                                        type="text"
-                                        className="input w-full"
-                                        placeholder="Ex: Plutôt le soir après 18h, le week-end, uniquement le matin..."
-                                        value={agendaTimePref}
-                                        onChange={e => setAgendaTimePref(e.target.value)}
-                                        style={{ fontSize: '0.85rem' }}
-                                    />
-                                </div>
-
-                                <button
-                                    className="btn btn-primary w-full shadow-glow"
-                                    style={{ justifyContent: 'center' }}
-                                    onClick={handleGenerateSmartAgenda}
-                                    disabled={generatingAI}
-                                >
-                                    {generatingAI ? (
-                                        <><div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} /> Génération du Smart Agenda...</>
-                                    ) : '✨ Générer Smart Agenda'}
-                                </button>
-                            </div>
-                        )}
-
-                        {showSessionForm && (
-                            <form onSubmit={handleCreateSession} className="card mb-6 flex flex-col gap-4 fade-enter" style={{ background: '#161620', border: '1px solid rgba(99,102,241,0.4)', borderRadius: '14px' }}>
-                                <h4 className="m-0 text-primary">{t('agenda_form_title')}</h4>
-                                <div className="flex flex-col gap-1">
-                                    <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>{t('agenda_label_title')}</label>
-                                    <input className="input" placeholder={t('agenda_placeholder_title')} value={newSession.title} onChange={e => setNewSession(s => ({ ...s, title: e.target.value }))} required />
-                                </div>
-                                <div className="flex gap-4 flex-wrap">
-                                    <div className="flex flex-col gap-1 flex-1">
-                                        <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>{t('agenda_label_type')}</label>
-                                        <select className="input" value={newSession.type} onChange={e => setNewSession(s => ({ ...s, type: e.target.value as 'travail' | 'discussion' | 'recherche' }))}>
-                                            <option value="travail">{t('agenda_type_work')}</option>
-                                            <option value="discussion">{t('agenda_type_discussion')}</option>
-                                            <option value="recherche">{t('agenda_type_research')}</option>
-                                        </select>
+                            {/* AI Generation panel */}
+                            {showAgendaAI && (
+                                <div className="ag-ai-panel">
+                                    <div className="ag-ai-head"><Bot size={16} /> Générer un planning</div>
+                                    <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.42)', margin: '0 0 14px', lineHeight: 1.55 }}>
+                                        L'IA créera des sessions pour les 2 prochaines semaines selon le rythme choisi.
+                                    </p>
+                                    <div className="ag-rhythm-grid">
+                                        {[
+                                            { id: 'leger',    label: 'Léger',    desc: '2–3 sessions', emoji: '🌿' },
+                                            { id: 'regulier', label: 'Régulier', desc: '4–6 sessions', emoji: '⚡' },
+                                            { id: 'intensif', label: 'Intensif', desc: '8–10 sessions', emoji: '🔥' }
+                                        ].map(r => (
+                                            <div
+                                                key={r.id}
+                                                className={`ag-rhythm-card${agendaRhythm === r.id ? ' active' : ''}`}
+                                                onClick={() => setAgendaRhythm(r.id as any)}
+                                            >
+                                                <div style={{ fontSize: '1.2rem', marginBottom: 5 }}>{r.emoji}</div>
+                                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: agendaRhythm === r.id ? '#a5b4fc' : 'rgba(255,255,255,0.7)' }}>{r.label}</div>
+                                                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.32)', marginTop: 2 }}>{r.desc}</div>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="flex flex-col gap-1" style={{ minWidth: '200px' }}>
-                                        <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>{t('agenda_label_date')}</label>
-                                        <CalendarPicker
-                                            value={newSession.scheduled_at}
-                                            onChange={v => setNewSession(s => ({ ...s, scheduled_at: v }))}
-                                            placeholder={t('agenda_label_date')}
-                                            required
+                                    <div style={{ marginBottom: 14 }}>
+                                        <label className="ag-label">Préférences horaires</label>
+                                        <input
+                                            className="ag-input"
+                                            type="text"
+                                            placeholder="Ex : soir après 18h, week-end, matin uniquement..."
+                                            value={agendaTimePref}
+                                            onChange={e => setAgendaTimePref(e.target.value)}
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-1" style={{ minWidth: '170px' }}>
-                                        <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>🔄 Récurrence</label>
-                                        <select className="input" value={newSession.recurring} onChange={e => setNewSession(s => ({ ...s, recurring: e.target.value as any }))}>
-                                            <option value="none">Aucune (une seule fois)</option>
-                                            <option value="weekly">Chaque semaine (×4)</option>
-                                            <option value="biweekly">Toutes les 2 semaines (×4)</option>
-                                        </select>
-                                    </div>
+                                    <button
+                                        className="ag-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
+                                        onClick={handleGenerateSmartAgenda}
+                                        disabled={generatingAI}
+                                    >
+                                        {generatingAI ? (
+                                            <><div className="ag-spin" style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#fff' }} /> Génération en cours...</>
+                                        ) : '✨ Générer Smart Agenda'}
+                                    </button>
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <label style={{ fontSize: '0.85rem', opacity: 0.7 }}>{t('agenda_label_desc')}</label>
-                                    <textarea className="input" rows={2} placeholder={t('agenda_desc_placeholder')} value={newSession.description} onChange={e => setNewSession(s => ({ ...s, description: e.target.value }))} />
-                                </div>
-                                <button type="submit" className="btn btn-primary" disabled={creatingSession}>
-                                    {creatingSession ? t('agenda_creating') : t('agenda_btn_create')}
-                                </button>
-                            </form>
-                        )}
+                            )}
 
-                        {sessions.length === 0 ? (
-                            <div className="card card-glass text-center py-16">
-                                <Calendar size={48} className="text-primary mx-auto mb-4 opacity-50" />
-                                <h3 className="text-secondary mb-2">{t('agenda_empty_title')}</h3>
-                                <p>{t('agenda_empty_desc')}</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-4">
-                                {sessions.map((s, idx) => {
-                                    const isAttending = user && s.attendees.includes(user.uid);
-                                    const isPast = s.scheduled_at?.toDate ? s.scheduled_at.toDate() < new Date() : new Date(s.scheduled_at) < new Date();
-                                    const dateStr = s.scheduled_at?.toDate
-                                        ? s.scheduled_at.toDate().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-                                        : new Date(s.scheduled_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-                                    return (
-                                        <div key={s.id} className="card card-glass fade-enter" style={{ animationDelay: `${idx * 0.08}s`, opacity: isPast ? 0.6 : 1, borderLeft: `3px solid ${s.type === 'discussion' ? 'var(--color-secondary)' : s.type === 'recherche' ? '#7c3aed' : 'var(--color-primary)'}` }}>
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        <span className={`badge text-white`} style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: s.type === 'discussion' ? 'var(--color-secondary)' : s.type === 'recherche' ? '#7c3aed' : 'var(--color-primary)' }}>
-                                                            {s.type === 'discussion' ? t('agenda_badge_discussion') : s.type === 'recherche' ? t('agenda_badge_research') : t('agenda_badge_work')}
-                                                        </span>
-                                                        {s.recurring && s.recurring !== 'none' && (
-                                                            <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', fontWeight: 600 }}>
-                                                                🔄 {s.recurring === 'weekly' ? 'Hebdo' : '2 sem.'}
-                                                            </span>
-                                                        )}
-                                                        {isPast && <span className="badge text-secondary" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>{t('agenda_badge_past')}</span>}
-                                                    </div>
-                                                    <h4 className="m-0 mb-1 break-words">{s.title}</h4>
-                                                    <p className="text-sm text-secondary m-0">🗓 {dateStr} &nbsp;·&nbsp; {t('agenda_by')} {s.creator_name}</p>
-                                                    {s.description && <p className="text-sm mt-2 mb-0 opacity-80" style={{ wordBreak: 'break-word' }}>{s.description}</p>}
-                                                    <div className="flex items-center gap-2 mt-3">
-                                                        <Users size={14} className="text-secondary" />
-                                                        <span className="text-sm text-secondary">{s.attendees.length} participant{s.attendees.length > 1 ? 's' : ''}</span>
-                                                        {/* Avatar placeholders */}
-                                                        {s.attendees.slice(0, 4).map(attendeeUid => {
-                                                            const member = memberships.find(m => m.user_id === attendeeUid);
-                                                            return (
-                                                                <Avatar
-                                                                    key={attendeeUid}
-                                                                    uid={attendeeUid}
-                                                                    avatarUrl={member?.user?.avatar_url}
-                                                                    avatarStyle={member?.user?.avatar_style}
-                                                                    size={24}
-                                                                    style={{ border: '2px solid var(--color-bg)', marginLeft: '-8px' }}
-                                                                />
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                                {!isPast && (
-                                                    <div className="flex flex-col gap-2 flex-shrink-0 items-end ml-2">
-                                                        <button
-                                                            className={`btn btn-sm flex-shrink-0 ${isAttending ? 'btn-outline text-secondary' : 'btn-primary shadow-glow'}`}
-                                                            onClick={() => handleToggleAttendee(s)}
-                                                        >
-                                                            <UserPlus size={14} />
-                                                            {isAttending ? t('agenda_btn_leave') : t('agenda_btn_join')}
-                                                        </button>
-                                                        {user && (s.creator_id === user.uid || objective?.creator_id === user.uid) && (
-                                                            <button
-                                                                className="btn btn-sm btn-ghost text-red-400 hover:bg-red-500/10"
-                                                                onClick={() => handleDeleteSession(s.id)}
-                                                                title="Supprimer la session"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-                                                        {user && s.creator_id === user.uid && (
-                                                            editingSessionId === s.id ? (
-                                                                <div className="flex flex-col gap-2" style={{ minWidth: '220px' }}>
-                                                                    <CalendarPicker
-                                                                        value={editDate}
-                                                                        onChange={v => setEditDate(v)}
-                                                                    />
-                                                                    <div className="flex gap-2">
-                                                                        <button className="btn btn-sm btn-primary flex-1" onClick={() => handleUpdateSessionDate(s)} disabled={!editDate}>✓ OK</button>
-                                                                        <button className="btn btn-sm btn-ghost text-secondary" onClick={() => { setEditingSessionId(null); setEditDate(''); }}>✕</button>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    className="btn btn-sm btn-ghost text-secondary"
-                                                                    style={{ fontSize: '0.8rem' }}
-                                                                    onClick={() => {
-                                                                        setEditingSessionId(s.id);
-                                                                        const d = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
-                                                                        setEditDate(d.toISOString().slice(0, 16));
-                                                                    }}
-                                                                >
-                                                                    {t('agenda_btn_edit_date')}
-                                                                </button>
-                                                            )
-                                                        )}
-                                                    </div>
-                                                )}
+                            {/* Session creation form */}
+                            {showSessionForm && (
+                                <div className="ag-form-panel">
+                                    <div className="ag-form-head">{t('agenda_form_title')}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                        <div>
+                                            <label className="ag-label">{t('agenda_label_title')}</label>
+                                            <input className="ag-input" placeholder={t('agenda_placeholder_title')} value={newSession.title} onChange={e => setNewSession(s => ({ ...s, title: e.target.value }))} required />
+                                        </div>
+                                        <div className="ag-form-grid">
+                                            <div>
+                                                <label className="ag-label">{t('agenda_label_type')}</label>
+                                                <select className="ag-input" style={{ cursor: 'pointer' }} value={newSession.type} onChange={e => setNewSession(s => ({ ...s, type: e.target.value as 'travail' | 'discussion' | 'recherche' }))}>
+                                                    <option value="travail">{t('agenda_type_work')}</option>
+                                                    <option value="discussion">{t('agenda_type_discussion')}</option>
+                                                    <option value="recherche">{t('agenda_type_research')}</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="ag-label">{t('agenda_label_date')}</label>
+                                                <CalendarPicker
+                                                    value={newSession.scheduled_at}
+                                                    onChange={v => setNewSession(s => ({ ...s, scheduled_at: v }))}
+                                                    placeholder={t('agenda_label_date')}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="ag-label">Récurrence</label>
+                                                <select className="ag-input" style={{ cursor: 'pointer' }} value={newSession.recurring} onChange={e => setNewSession(s => ({ ...s, recurring: e.target.value as any }))}>
+                                                    <option value="none">Aucune (une seule)</option>
+                                                    <option value="weekly">Chaque semaine (×4)</option>
+                                                    <option value="biweekly">Toutes les 2 sem. (×4)</option>
+                                                </select>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                        <div>
+                                            <label className="ag-label">{t('agenda_label_desc')}</label>
+                                            <textarea className="ag-input" rows={2} style={{ resize: 'vertical' }} placeholder={t('agenda_desc_placeholder')} value={newSession.description} onChange={e => setNewSession(s => ({ ...s, description: e.target.value }))} />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="ag-btn-primary"
+                                            style={{ alignSelf: 'flex-end', padding: '9px 22px' }}
+                                            onClick={(e) => handleCreateSession(e as any)}
+                                            disabled={creatingSession}
+                                        >
+                                            {creatingSession ? t('agenda_creating') : t('agenda_btn_create')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Sessions list */}
+                            {sessions.length === 0 ? (
+                                <div className="ag-empty">
+                                    <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#818cf8' }}>
+                                        <Calendar size={24} />
+                                    </div>
+                                    <div style={{ fontFamily: 'Outfit, system-ui', fontWeight: 700, fontSize: '1rem', color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>{t('agenda_empty_title')}</div>
+                                    <div style={{ fontSize: '0.83rem', color: 'rgba(255,255,255,0.25)' }}>{t('agenda_empty_desc')}</div>
+                                </div>
+                            ) : (
+                                <div className="ag-list">
+                                    {sessions.map((s, idx) => {
+                                        const isAttending = user && s.attendees.includes(user.uid);
+                                        const dateObj = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
+                                        const isPast = dateObj < new Date();
+                                        const typeColor = s.type === 'discussion' ? '#ec4899' : s.type === 'recherche' ? '#8b5cf6' : '#6366f1';
+                                        const dayNum = dateObj.getDate();
+                                        const dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'short' });
+                                        const monthName = dateObj.toLocaleDateString('fr-FR', { month: 'short' });
+                                        const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+                                        return (
+                                            <div key={s.id} className="ag-card" style={{ animationDelay: `${idx * 0.06}s` }}>
+                                                {/* Date column */}
+                                                <div className="ag-date-col">
+                                                    <div className="ag-dot" style={{ borderColor: isPast ? 'rgba(255,255,255,0.15)' : typeColor, boxShadow: isPast ? 'none' : `0 0 6px ${typeColor}60` }} />
+                                                    <div className="ag-day-num" style={{ color: isPast ? 'rgba(255,255,255,0.3)' : typeColor }}>{dayNum}</div>
+                                                    <div className="ag-day-name" style={{ color: isPast ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.5)' }}>{dayName}</div>
+                                                    <div className="ag-month">{monthName}</div>
+                                                    <div className="ag-time" style={{ color: isPast ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.5)' }}>{timeStr}</div>
+                                                </div>
+
+                                                {/* Card body */}
+                                                <div className={`ag-body${isPast ? ' past' : ''}`} style={{ borderLeftColor: isPast ? 'rgba(255,255,255,0.06)' : `${typeColor}35` }}>
+                                                    <div className="ag-body-inner">
+                                                        <div className="ag-pill-row">
+                                                            <span className="ag-pill" style={{
+                                                                background: `${typeColor}18`,
+                                                                border: `1px solid ${typeColor}45`,
+                                                                color: typeColor,
+                                                            }}>
+                                                                {s.type === 'discussion' ? t('agenda_badge_discussion') : s.type === 'recherche' ? t('agenda_badge_research') : t('agenda_badge_work')}
+                                                            </span>
+                                                            {s.recurring && s.recurring !== 'none' && (
+                                                                <span className="ag-pill" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.28)', color: '#34d399' }}>
+                                                                    ↻ {s.recurring === 'weekly' ? 'Hebdo' : '2 sem.'}
+                                                                </span>
+                                                            )}
+                                                            {isPast && (
+                                                                <span className="ag-pill" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.32)' }}>
+                                                                    {t('agenda_badge_past')}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="ag-session-title">{s.title}</div>
+                                                        <div className="ag-meta">
+                                                            <span>{t('agenda_by')} {s.creator_name}</span>
+                                                        </div>
+                                                        {s.description && <div className="ag-desc">{s.description}</div>}
+                                                        <div className="ag-participants">
+                                                            <span className="ag-p-count"><Users size={12} style={{ display:'inline', verticalAlign:'middle', marginRight:4 }} />{s.attendees.length} participant{s.attendees.length > 1 ? 's' : ''}</span>
+                                                            <div style={{ display: 'flex' }}>
+                                                                {s.attendees.slice(0, 4).map((attendeeUid: string) => {
+                                                                    const member = memberships.find((m: any) => m.user_id === attendeeUid);
+                                                                    return (
+                                                                        <Avatar
+                                                                            key={attendeeUid}
+                                                                            uid={attendeeUid}
+                                                                            avatarUrl={member?.user?.avatar_url}
+                                                                            avatarStyle={member?.user?.avatar_style}
+                                                                            size={22}
+                                                                            style={{ border: '2px solid rgba(12,12,16,0.9)', marginLeft: idx === 0 ? 0 : -6 }}
+                                                                        />
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Side actions */}
+                                                    {!isPast && (
+                                                        <div className="ag-side">
+                                                            <button
+                                                                className={`ag-join-btn ${isAttending ? 'leave' : 'join'}`}
+                                                                onClick={() => handleToggleAttendee(s)}
+                                                            >
+                                                                <UserPlus size={13} />
+                                                                {isAttending ? t('agenda_btn_leave') : t('agenda_btn_join')}
+                                                            </button>
+                                                            {user && (s.creator_id === user.uid || objective?.creator_id === user.uid) && (
+                                                                <button
+                                                                    className="ag-icon-btn del"
+                                                                    onClick={() => handleDeleteSession(s.id)}
+                                                                    title="Supprimer"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            )}
+                                                            {user && s.creator_id === user.uid && (
+                                                                editingSessionId === s.id ? (
+                                                                    <div className="ag-edit-row">
+                                                                        <CalendarPicker value={editDate} onChange={v => setEditDate(v)} />
+                                                                        <div className="ag-edit-btns">
+                                                                            <button className="ag-edit-ok" onClick={() => handleUpdateSessionDate(s)} disabled={!editDate}>✓ OK</button>
+                                                                            <button className="ag-edit-cancel" onClick={() => { setEditingSessionId(null); setEditDate(''); }}>✕</button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        className="ag-icon-btn edit"
+                                                                        title={t('agenda_btn_edit_date')}
+                                                                        onClick={() => {
+                                                                            setEditingSessionId(s.id);
+                                                                            const d = s.scheduled_at?.toDate ? s.scheduled_at.toDate() : new Date(s.scheduled_at);
+                                                                            setEditDate(d.toISOString().slice(0, 16));
+                                                                        }}
+                                                                    >
+                                                                        <Edit3 size={13} />
+                                                                    </button>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
                 {/* TAB: RESOURCES */}
                 {activeTab === 'resources' && (
                     <div className="tab-pane active fade-enter">
+                        <style>{`
+                            .rc-wrap { font-family: 'DM Sans', system-ui; }
+                            .rc-section-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+                            .rc-section-title { display: flex; align-items: center; gap: 9px; font-family: 'Outfit', system-ui; font-size: 1.05rem; font-weight: 700; color: #eeeef0; margin: 0; letter-spacing: -0.015em; }
+                            .rc-section-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                            .rc-section-sub { font-size: 0.77rem; color: rgba(255,255,255,0.32); margin: 4px 0 0 41px; }
+                            .rc-btn-ghost { padding: 7px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-family: 'DM Sans', system-ui; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+                            .rc-btn-ghost:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+                            .rc-form-panel { border-radius: 15px; padding: 18px; background: rgba(12,12,16,0.85); border: 1px solid rgba(99,102,241,0.28); margin-bottom: 18px; animation: rc-in 0.25s cubic-bezier(0.22,1,0.36,1); }
+                            .rc-type-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: rgba(255,255,255,0.03); border-radius: 10px; padding: 4px; margin-bottom: 14px; }
+                            .rc-type-tab { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-radius: 7px; border: none; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.18s; font-family: 'DM Sans', system-ui; }
+                            .rc-type-tab.active { background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.35); }
+                            .rc-type-tab.inactive { background: transparent; color: rgba(255,255,255,0.4); }
+                            .rc-type-tab.inactive:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
+                            .rc-input { width: 100%; padding: 10px 13px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; color: #eeeeef; font-size: 0.88rem; font-family: 'DM Sans', system-ui; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+                            .rc-input:focus { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.04); }
+                            .rc-input::placeholder { color: rgba(255,255,255,0.2); }
+                            .rc-upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px; border-radius: 12px; border: 1.5px dashed rgba(255,255,255,0.12); background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.2s; text-align: center; }
+                            .rc-upload-zone:hover, .rc-upload-zone.has-file { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.05); }
+                            .rc-upload-icon { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25); color: #818cf8; }
+                            .rc-progress { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden; margin: 2px 0; }
+                            .rc-progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg,#6366f1,#818cf8); transition: width 0.3s ease; }
+                            .rc-form-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+                            .rc-btn-cancel { padding: 8px 16px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); font-family: 'DM Sans', system-ui; transition: all 0.2s; }
+                            .rc-btn-cancel:hover { background: rgba(255,255,255,0.08); }
+                            .rc-btn-add { padding: 8px 20px; border-radius: 9px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; box-shadow: 0 2px 10px rgba(99,102,241,0.35); }
+                            .rc-btn-add:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.52); transform: translateY(-1px); }
+                            .rc-btn-add:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+                            .rc-files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 32px; }
+                            .rc-file-card { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border-radius: 13px; background: rgba(18,18,24,0.7); border: 1px solid rgba(255,255,255,0.06); transition: all 0.2s; animation: rc-in 0.3s cubic-bezier(0.22,1,0.36,1); }
+                            .rc-file-card:hover { border-color: rgba(255,255,255,0.11); box-shadow: 0 4px 16px rgba(0,0,0,0.28); }
+                            .rc-file-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+                            .rc-file-info { flex: 1; min-width: 0; }
+                            .rc-file-name { font-size: 0.88rem; font-weight: 600; color: #eeeef0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+                            .rc-file-meta { font-size: 0.72rem; color: rgba(255,255,255,0.32); }
+                            .rc-file-actions { display: flex; gap: 4px; flex-shrink: 0; }
+                            .rc-icon-btn { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.38); text-decoration: none; }
+                            .rc-icon-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); }
+                            .rc-icon-btn.del:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.25); color: #f87171; }
+                            .rc-empty-files { border-radius: 14px; padding: 32px 20px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.07); text-align: center; margin-bottom: 28px; }
+                            .rc-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 28px 0 24px; }
+                            .rc-ai-section { }
+                            .rc-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+                            .rc-prompt-row { display: flex; gap: 9px; align-items: flex-end; margin-bottom: 16px; }
+                            .rc-btn-gen { padding: 10px 18px; border-radius: 10px; font-size: 0.82rem; font-weight: 700; cursor: pointer; border: none; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-family: 'DM Sans', system-ui; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; box-shadow: 0 3px 10px rgba(99,102,241,0.32); display: flex; align-items: center; gap: 7px; }
+                            .rc-btn-gen:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.5); transform: translateY(-1px); }
+                            .rc-btn-gen:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
+                            .rc-ai-list { display: flex; flex-direction: column; gap: 8px; }
+                            .rc-ai-item { display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px; border-radius: 12px; background: rgba(18,18,24,0.65); border: 1px solid rgba(255,255,255,0.06); animation: rc-in 0.3s cubic-bezier(0.22,1,0.36,1); transition: border-color 0.2s; }
+                            .rc-ai-item:hover { border-color: rgba(236,72,153,0.2); }
+                            .rc-ai-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#6366f1,#ec4899); flex-shrink: 0; margin-top: 6px; }
+                            .rc-ai-skeleton { border-radius: 12px; background: rgba(255,255,255,0.04); animation: rc-pulse 1.5s ease infinite; }
+                            .rc-ai-empty { border-radius: 14px; padding: 32px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.07); text-align: center; }
+                            @keyframes rc-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+                            @keyframes rc-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+                            @keyframes rc-spin { to { transform: rotate(360deg); } }
+                            .rc-spin { animation: rc-spin 0.85s linear infinite; }
+                        `}</style>
 
-                        {/* ── Section 1: Fichiers & liens partagés ── */}
-                        <div className="flex justify-between items-start mb-6 flex-wrap gap-3" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1.25rem' }}>
-                            <div>
-                                <h3 className="flex items-center gap-2 m-0" style={{ fontSize: '1.15rem' }}><FileUp className="text-primary" size={20} /> Fichiers & liens partagés</h3>
-                                <p className="text-sm text-secondary m-0 mt-1">Partagés avec tous les membres du salon</p>
-                            </div>
-                            <button
-                                className="btn btn-sm btn-ghost"
-                                style={{ border: '1px solid var(--color-border)', fontSize: '0.82rem' }}
-                                onClick={() => setShowAddResource(v => !v)}
-                            >
-                                {showAddResource ? '✕ Annuler' : '+ Ajouter manuellement'}
-                            </button>
-                        </div>
-
-                        {/* Add form */}
-                        {showAddResource && (
-                            <div className="card card-glass mb-5 flex flex-col gap-4 fade-enter" style={{ border: '1px solid var(--color-primary)', background: 'rgba(99,102,241,0.04)', padding: '1rem' }}>
-                                <h5 className="m-0 text-primary" style={{ fontSize: '0.9rem' }}>Nouveau fichier / lien</h5>
-                                {/* Type toggle */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 4 }}>
-                                    {(['link', 'file'] as const).map(type => (
-                                        <button key={type} onClick={() => { setResType(type); setResTitle(''); setResUrl(''); setResFile(null); }} style={{
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                            padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                                            background: resType === type ? 'var(--color-primary)' : 'transparent',
-                                            color: resType === type ? '#fff' : 'var(--color-text-secondary)',
-                                        }}>
-                                            {type === 'link' ? <><LinkIcon size={13} /> Lien</> : <><FileUp size={13} /> Fichier</>}
-                                        </button>
-                                    ))}
+                        <div className="rc-wrap">
+                            {/* ── Shared files section ── */}
+                            <div className="rc-section-head">
+                                <div>
+                                    <h3 className="rc-section-title">
+                                        <span className="rc-section-icon" style={{ background: 'rgba(99,102,241,0.13)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8' }}>
+                                            <FileUp size={15} />
+                                        </span>
+                                        Fichiers &amp; liens partagés
+                                    </h3>
+                                    <p className="rc-section-sub">Partagés avec tous les membres du salon</p>
                                 </div>
-
-                                {resType === 'link' ? (
-                                    <>
-                                        <input className="input" placeholder="Titre *" value={resTitle} onChange={e => setResTitle(e.target.value)} />
-                                        <input className="input" placeholder="URL (optionnel)" value={resUrl} onChange={e => setResUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddResource(); }} />
-                                    </>
-                                ) : (
-                                    <>
-                                        <label className="flex flex-col items-center justify-center gap-2 cursor-pointer" style={{
-                                            padding: '20px', borderRadius: 10, border: `1px dashed ${resFile ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                                            background: resFile ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.02)', transition: 'all 0.15s',
-                                        }}>
-                                            <Upload size={18} style={{ color: resFile ? 'var(--color-primary)' : 'var(--color-text-secondary)' }} />
-                                            <span className="text-sm" style={{ color: resFile ? 'var(--color-primary)' : 'var(--color-text-secondary)', textAlign: 'center', wordBreak: 'break-all' }}>
-                                                {resFile ? resFile.name : 'Cliquer pour choisir un fichier'}
-                                            </span>
-                                            <input type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setResFile(f); if (!resTitle) setResTitle(f.name); } }} />
-                                        </label>
-                                        <input className="input" placeholder="Titre (optionnel)" value={resTitle} onChange={e => setResTitle(e.target.value)} />
-                                    </>
-                                )}
-
-                                {resUploading && (
-                                    <div className="w-full rounded-full overflow-hidden" style={{ height: 4, background: 'var(--color-border)' }}>
-                                        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${resUploadProgress}%` }} />
-                                    </div>
-                                )}
-
-                                <div className="flex gap-3">
-                                    <button className="btn btn-sm btn-ghost text-secondary flex-1" style={{ border: '1px solid var(--color-border)' }} onClick={() => { setShowAddResource(false); setResTitle(''); setResUrl(''); setResFile(null); }}>Annuler</button>
-                                    <button className="btn btn-sm btn-primary flex-1" onClick={handleAddResource} disabled={resUploading || (resType === 'link' ? !resTitle.trim() : !resFile)}>
-                                        {resUploading ? `Envoi ${resUploadProgress}%…` : '✓ Ajouter'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Shared files list */}
-                        {sharedFiles.length === 0 && !showAddResource ? (
-                            <div className="card card-glass text-center py-10 mb-8">
-                                <FileUp size={32} className="text-secondary mx-auto mb-3 opacity-40" />
-                                <p className="text-secondary m-0">Aucun fichier partagé pour l&apos;instant.</p>
-                                <p className="text-sm opacity-50 mt-1">Ajoutez des documents, liens ou ressources utiles pour tous les membres.</p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
-                                {sharedFiles.map((f, idx) => (
-                                    <div key={f.id} className="card card-glass fade-enter flex items-center gap-4" style={{ animationDelay: `${idx * 0.06}s`, background: 'rgba(255,255,255,0.02)', padding: '1.1rem 1.3rem' }}>
-                                        <div className={`p-2.5 rounded-lg flex-shrink-0 ${f.type === 'file' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
-                                            {f.type === 'file' ? <FileText size={18} /> : <LinkIcon size={18} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="m-0 font-semibold truncate">{f.title}</p>
-                                            <p className="m-0 text-xs text-secondary mt-0.5">
-                                                par {f.added_by_name}
-                                                {f.file_size ? ` · ${f.file_size > 1024 * 1024 ? (f.file_size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(f.file_size / 1024) + ' KB'}` : ''}
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-2 flex-shrink-0">
-                                            {f.url && (
-                                                <a href={f.url} target="_blank" rel="noopener noreferrer"
-                                                    className="btn btn-sm btn-ghost p-2 text-slate-300" style={{ border: '1px solid var(--color-border)' }}
-                                                    title={f.type === 'file' ? 'Télécharger' : 'Ouvrir'}>
-                                                    {f.type === 'file' ? <Download size={15} /> : <ExternalLink size={15} />}
-                                                </a>
-                                            )}
-                                            {(user?.uid === f.added_by || user?.uid === objective.creator_id) && (
-                                                <button onClick={() => handleDeleteResource(f.id, f.storage_path)}
-                                                    className="btn btn-sm btn-ghost p-2 text-slate-500" style={{ border: '1px solid transparent' }}
-                                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#f87171'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = ''; }}
-                                                    title="Supprimer">
-                                                    <Trash2 size={15} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* ── Section 2: Ressources IA ── */}
-                        <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1.25rem', marginBottom: '1.5rem' }}>
-                            <h3 className="flex items-center gap-2 m-0 mb-1" style={{ fontSize: '1.15rem' }}><Bot className="text-secondary" size={20} /> Ressources générées par l&apos;IA</h3>
-                            <p className="text-sm text-secondary m-0 mb-5">Suggestions et tutoriels adaptés à votre objectif</p>
-
-                            {/* Prompt input */}
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: '0.75rem', color: '#71717a', fontWeight: 600, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Sur quoi as-tu besoin d&apos;aide ? <span style={{ opacity: 0.5, fontWeight: 400, textTransform: 'none' }}>(optionnel)</span>
-                                    </label>
-                                    <input
-                                        className="input"
-                                        type="text"
-                                        placeholder={`Ex: débutant en Python, surtout la POO et les fichiers...`}
-                                        value={aiResourcePrompt}
-                                        onChange={e => setAiResourcePrompt(e.target.value)}
-                                        onKeyDown={e => { if (e.key === 'Enter' && !generatingAIResources) handleGenerateResources(); }}
-                                        disabled={generatingAIResources}
-                                        style={{ fontSize: '0.875rem', width: '100%' }}
-                                    />
-                                </div>
-                                <button
-                                    className="btn btn-sm btn-primary"
-                                    style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0, height: '40px', paddingInline: '16px' }}
-                                    onClick={handleGenerateResources}
-                                    disabled={generatingAIResources}
-                                >
-                                    {generatingAIResources
-                                        ? <><span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.8s linear infinite', marginRight: 6 }} />Génération...</>
-                                        : resources.length > 0 ? '🔄 Regénérer' : '🤖 Générer'}
+                                <button className="rc-btn-ghost" onClick={() => setShowAddResource(v => !v)}>
+                                    {showAddResource ? <><X size={13} /> Annuler</> : <><FileUp size={13} /> Ajouter</>}
                                 </button>
                             </div>
-                        </div>
 
-                        {generatingAIResources ? (
-                            <div className="flex flex-col gap-3">
-                                {[...Array(5)].map((_, i) => (
-                                    <div key={i} className="card card-glass" style={{ height: 52, opacity: 0.4, animation: 'pulse 1.5s ease infinite', animationDelay: `${i * 0.1}s` }} />
-                                ))}
-                            </div>
-                        ) : resources.length === 0 ? (
-                            <div className="card card-glass text-center py-8" style={{ opacity: 0.7 }}>
-                                <Bot size={28} className="text-secondary mx-auto mb-2 opacity-40" />
-                                <p className="text-secondary m-0 text-sm">Lance une génération pour obtenir des ressources personnalisées.</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-3">
-                                {resources.map((r: any, idx) => (
-                                    <div key={r.id} className="card card-glass fade-enter flex items-start gap-4" style={{ animationDelay: `${idx * 0.08}s`, background: 'rgba(255,255,255,0.02)' }}>
-                                        <div className="p-2.5 rounded-lg flex-shrink-0 bg-secondary/10 text-secondary mt-0.5">
-                                            <LinkIcon size={16} />
+                            {showAddResource && (
+                                <div className="rc-form-panel">
+                                    <div className="rc-type-tabs">
+                                        {(['link', 'file'] as const).map(type => (
+                                            <button
+                                                key={type}
+                                                className={`rc-type-tab ${resType === type ? 'active' : 'inactive'}`}
+                                                onClick={() => { setResType(type); setResTitle(''); setResUrl(''); setResFile(null); }}
+                                            >
+                                                {type === 'link' ? <><LinkIcon size={13} /> Lien</> : <><FileUp size={13} /> Fichier</>}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        {resType === 'link' ? (
+                                            <>
+                                                <input className="rc-input" placeholder="Titre *" value={resTitle} onChange={e => setResTitle(e.target.value)} autoFocus />
+                                                <input className="rc-input" placeholder="URL (optionnel)" value={resUrl} onChange={e => setResUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddResource(); }} />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <label className={`rc-upload-zone${resFile ? ' has-file' : ''}`}>
+                                                    <div className="rc-upload-icon">
+                                                        <Upload size={17} />
+                                                    </div>
+                                                    <div style={{ fontSize: '0.83rem', color: resFile ? '#818cf8' : 'rgba(255,255,255,0.38)', wordBreak: 'break-all', fontWeight: resFile ? 600 : 400 }}>
+                                                        {resFile ? resFile.name : 'Cliquer pour choisir un fichier'}
+                                                    </div>
+                                                    {!resFile && <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)' }}>Tous formats acceptés</div>}
+                                                    <input type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setResFile(f); if (!resTitle) setResTitle(f.name); } }} />
+                                                </label>
+                                                <input className="rc-input" placeholder="Titre (optionnel)" value={resTitle} onChange={e => setResTitle(e.target.value)} />
+                                            </>
+                                        )}
+
+                                        {resUploading && (
+                                            <div className="rc-progress">
+                                                <div className="rc-progress-fill" style={{ width: `${resUploadProgress}%` }} />
+                                            </div>
+                                        )}
+
+                                        <div className="rc-form-footer">
+                                            <button className="rc-btn-cancel" onClick={() => { setShowAddResource(false); setResTitle(''); setResUrl(''); setResFile(null); }}>Annuler</button>
+                                            <button className="rc-btn-add" onClick={handleAddResource} disabled={resUploading || (resType === 'link' ? !resTitle.trim() : !resFile)}>
+                                                {resUploading ? `${resUploadProgress}%…` : '✓ Ajouter'}
+                                            </button>
                                         </div>
-                                        <p className="m-0 flex-1" style={{ lineHeight: '1.6' }}>{r.text}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {sharedFiles.length === 0 && !showAddResource ? (
+                                <div className="rc-empty-files">
+                                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#818cf8' }}>
+                                        <FileUp size={20} />
+                                    </div>
+                                    <div style={{ fontFamily: 'Outfit, system-ui', fontWeight: 700, fontSize: '0.9rem', color: 'rgba(255,255,255,0.45)', marginBottom: 5 }}>Aucun fichier partagé</div>
+                                    <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.22)' }}>Ajoutez des documents, liens ou ressources utiles pour tous.</div>
+                                </div>
+                            ) : (
+                                <div className="rc-files-grid">
+                                    {sharedFiles.map((f, idx) => (
+                                        <div key={f.id} className="rc-file-card" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                            <div className="rc-file-icon" style={f.type === 'file' ? { background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' } : { background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8' }}>
+                                                {f.type === 'file' ? <FileText size={16} /> : <LinkIcon size={16} />}
+                                            </div>
+                                            <div className="rc-file-info">
+                                                <div className="rc-file-name">{f.title}</div>
+                                                <div className="rc-file-meta">
+                                                    {f.added_by_name}
+                                                    {f.file_size ? ` · ${f.file_size > 1024 * 1024 ? (f.file_size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(f.file_size / 1024) + ' KB'}` : ''}
+                                                </div>
+                                            </div>
+                                            <div className="rc-file-actions">
+                                                {f.url && (
+                                                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="rc-icon-btn" title={f.type === 'file' ? 'Télécharger' : 'Ouvrir'}>
+                                                        {f.type === 'file' ? <Download size={14} /> : <ExternalLink size={14} />}
+                                                    </a>
+                                                )}
+                                                {(user?.uid === f.added_by || user?.uid === objective.creator_id) && (
+                                                    <button className="rc-icon-btn del" onClick={() => handleDeleteResource(f.id, f.storage_path)} title="Supprimer">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="rc-divider" />
+
+                            {/* ── AI Resources section ── */}
+                            <div className="rc-ai-section">
+                                <div className="rc-ai-head">
+                                    <div>
+                                        <h3 className="rc-section-title">
+                                            <span className="rc-section-icon" style={{ background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.25)', color: '#f472b6' }}>
+                                                <Bot size={15} />
+                                            </span>
+                                            Ressources générées par l'IA
+                                        </h3>
+                                        <p className="rc-section-sub">Suggestions et tutoriels adaptés à votre objectif</p>
+                                    </div>
+                                </div>
+
+                                <div className="rc-prompt-row">
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', fontSize: '0.71rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginBottom: 7 }}>
+                                            Sur quoi as-tu besoin d'aide ? <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, color: 'rgba(255,255,255,0.18)' }}>(optionnel)</span>
+                                        </label>
+                                        <input
+                                            className="rc-input"
+                                            type="text"
+                                            placeholder="Ex : débutant en Python, surtout la POO et les fichiers..."
+                                            value={aiResourcePrompt}
+                                            onChange={e => setAiResourcePrompt(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter' && !generatingAIResources) handleGenerateResources(); }}
+                                            disabled={generatingAIResources}
+                                        />
+                                    </div>
+                                    <button className="rc-btn-gen" onClick={handleGenerateResources} disabled={generatingAIResources}>
+                                        {generatingAIResources
+                                            ? <><div className="rc-spin" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff' }} /> Génération...</>
+                                            : resources.length > 0 ? '↺ Regénérer' : <><Bot size={14} /> Générer</>
+                                        }
+                                    </button>
+                                </div>
+
+                                {generatingAIResources ? (
+                                    <div className="rc-ai-list">
+                                        {[...Array(5)].map((_, i) => (
+                                            <div key={i} className="rc-ai-skeleton" style={{ height: 52, animationDelay: `${i * 0.1}s` }} />
+                                        ))}
+                                    </div>
+                                ) : resources.length === 0 ? (
+                                    <div className="rc-ai-empty">
+                                        <div style={{ width: 42, height: 42, borderRadius: 11, background: 'rgba(236,72,153,0.1)', border: '1px solid rgba(236,72,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#f472b6' }}>
+                                            <Bot size={19} />
+                                        </div>
+                                        <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.28)' }}>Lance une génération pour obtenir des ressources personnalisées.</div>
+                                    </div>
+                                ) : (
+                                    <div className="rc-ai-list">
+                                        {resources.map((r: any, idx: number) => (
+                                            <div key={r.id} className="rc-ai-item" style={{ animationDelay: `${idx * 0.07}s` }}>
+                                                <div className="rc-ai-dot" />
+                                                <p style={{ margin: 0, flex: 1, fontSize: '0.87rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>{r.text}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── NOTES COLLABORATIVES ─────────────────────────────────── */}
+                {activeTab === 'notes' && (
+                    <div style={{ padding: '0 2rem 2rem' }}>
+                        <style>{`
+                            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+                            .nt-wrap { font-family: 'DM Sans', sans-serif; max-width: 860px; }
+                            .nt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+                            .nt-title { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+                            .nt-title-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+                            .nt-save-badge { font-size: 0.72rem; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); border-radius: 20px; padding: 2px 10px; }
+                            .nt-pad { background: rgba(245,158,11,0.04); border: 1.5px solid rgba(245,158,11,0.18); border-radius: 16px; overflow: hidden; position: relative; }
+                            .nt-pad::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b); }
+                            .nt-lines { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(transparent, transparent 31px, rgba(245,158,11,0.07) 31px, rgba(245,158,11,0.07) 32px); background-position: 0 36px; }
+                            .nt-textarea { width: 100%; min-height: 420px; background: transparent; border: none; outline: none; resize: none; color: rgba(255,255,255,0.88); font-family: 'DM Sans', sans-serif; font-size: 0.97rem; line-height: 2rem; padding: 2rem 2rem; box-sizing: border-box; position: relative; z-index: 1; }
+                            .nt-textarea::placeholder { color: rgba(255,255,255,0.2); }
+                            .nt-footer { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid rgba(245,158,11,0.1); background: rgba(245,158,11,0.03); }
+                            .nt-hint { font-size: 0.75rem; color: rgba(255,255,255,0.3); }
+                            .nt-members { display: flex; gap: 6px; margin-left: auto; }
+                            .nt-avatar { width: 24px; height: 24px; border-radius: 50%; background: rgba(245,158,11,0.2); border: 1.5px solid rgba(245,158,11,0.4); display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; color: #f59e0b; }
+                        `}</style>
+                        <div className="nt-wrap">
+                            <div className="nt-header">
+                                <div className="nt-title">
+                                    <div className="nt-title-icon"><StickyNote size={16} color="#fff" /></div>
+                                    Notes collaboratives
+                                </div>
+                                {savingNote && <span className="nt-save-badge">Sauvegarde…</span>}
+                            </div>
+                            <div className="nt-pad">
+                                <div className="nt-lines" />
+                                <textarea
+                                    className="nt-textarea"
+                                    placeholder="Écrivez vos notes ici — tout le groupe y a accès en temps réel…"
+                                    value={collabNote}
+                                    onChange={e => handleNoteChange(e.target.value)}
+                                />
+                                <div className="nt-footer">
+                                    <span className="nt-hint">Modifications sauvegardées automatiquement</span>
+                                    <div className="nt-members">
+                                        {memberships.slice(0, 5).map((m: any) => (
+                                            <div key={m.user_id} className="nt-avatar" title={m.user?.full_name}>
+                                                {(m.user?.full_name || 'A')[0].toUpperCase()}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── DÉCISIONS ────────────────────────────────────────────── */}
+                {activeTab === 'decisions' && (
+                    <div style={{ padding: '0 2rem 2rem' }}>
+                        <style>{`
+                            .dc-wrap { font-family: 'DM Sans', sans-serif; max-width: 860px; }
+                            .dc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+                            .dc-title { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+                            .dc-title-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+                            .dc-btn-add { display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 8px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .dc-btn-add:hover { opacity: 0.88; }
+                            .dc-form { background: rgba(16,185,129,0.06); border: 1.5px solid rgba(16,185,129,0.2); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 10px; }
+                            .dc-input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; padding: 10px 14px; outline: none; width: 100%; box-sizing: border-box; }
+                            .dc-input:focus { border-color: rgba(16,185,129,0.5); }
+                            .dc-input::placeholder { color: rgba(255,255,255,0.25); }
+                            .dc-outcome-row { display: flex; gap: 8px; }
+                            .dc-outcome-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.6); font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+                            .dc-outcome-btn.active-approved { background: rgba(16,185,129,0.2); border-color: #10b981; color: #10b981; }
+                            .dc-outcome-btn.active-rejected { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #ef4444; }
+                            .dc-outcome-btn.active-pending { background: rgba(245,158,11,0.2); border-color: #f59e0b; color: #f59e0b; }
+                            .dc-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+                            .dc-btn-cancel { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: rgba(255,255,255,0.5); font-family: 'DM Sans', sans-serif; font-size: 0.83rem; padding: 7px 14px; cursor: pointer; }
+                            .dc-btn-submit { background: #10b981; border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.83rem; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .dc-btn-submit:disabled { opacity: 0.5; }
+                            .dc-list { display: flex; flex-direction: column; gap: 12px; }
+                            .dc-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 1.1rem 1.25rem 1.1rem 1.5rem; position: relative; overflow: hidden; display: flex; align-items: flex-start; gap: 14px; }
+                            .dc-card-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
+                            .dc-card-stripe.approved { background: #10b981; }
+                            .dc-card-stripe.rejected { background: #ef4444; }
+                            .dc-card-stripe.pending { background: #f59e0b; }
+                            .dc-card-body { flex: 1; }
+                            .dc-card-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 4px; }
+                            .dc-card-desc { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.55; }
+                            .dc-card-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+                            .dc-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; }
+                            .dc-badge.approved { background: rgba(16,185,129,0.18); color: #10b981; }
+                            .dc-badge.rejected { background: rgba(239,68,68,0.18); color: #ef4444; }
+                            .dc-badge.pending { background: rgba(245,158,11,0.18); color: #f59e0b; }
+                            .dc-meta-author { font-size: 0.75rem; color: rgba(255,255,255,0.35); }
+                            .dc-delete-btn { background: none; border: none; color: rgba(255,255,255,0.25); cursor: pointer; padding: 4px; border-radius: 6px; transition: color 0.15s; }
+                            .dc-delete-btn:hover { color: #ef4444; }
+                            .dc-empty { text-align: center; padding: 3rem; color: rgba(255,255,255,0.3); font-size: 0.9rem; }
+                            .dc-outcome-actions { display: flex; gap: 6px; margin-top: 10px; }
+                            .dc-outcome-action { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1.5px solid; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; background: transparent; }
+                            .dc-outcome-action.approve { border-color: #10b981; color: #10b981; } .dc-outcome-action.approve:hover { background: rgba(16,185,129,0.15); }
+                            .dc-outcome-action.reject { border-color: #ef4444; color: #ef4444; } .dc-outcome-action.reject:hover { background: rgba(239,68,68,0.15); }
+                            .dc-outcome-action.reset { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.4); } .dc-outcome-action.reset:hover { background: rgba(255,255,255,0.05); }
+                            .dc-comment-section { padding: 0.75rem 1.25rem; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 4px; }
+                            .dc-comment-toggle { background: none; border: none; color: rgba(255,255,255,0.35); font-family: 'DM Sans', sans-serif; font-size: 0.77rem; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 5px; }
+                            .dc-comment-toggle:hover { color: rgba(255,255,255,0.65); }
+                            .dc-comment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+                            .dc-comment-item { display: flex; gap: 8px; align-items: flex-start; }
+                            .dc-comment-author { font-size: 0.73rem; font-weight: 700; color: #10b981; flex-shrink: 0; }
+                            .dc-comment-text { font-size: 0.82rem; color: rgba(255,255,255,0.6); line-height: 1.45; }
+                            .dc-comment-row { display: flex; gap: 8px; margin-top: 10px; }
+                            .dc-comment-input { flex: 1; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; padding: 7px 10px; outline: none; }
+                            .dc-comment-input::placeholder { color: rgba(255,255,255,0.2); }
+                            .dc-comment-send { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; color: #10b981; font-size: 0.78rem; font-weight: 600; padding: 7px 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+                        `}</style>
+                        <div className="dc-wrap">
+                            <div className="dc-header">
+                                <div className="dc-title">
+                                    <div className="dc-title-icon"><Scale size={16} color="#fff" /></div>
+                                    Décisions
+                                </div>
+                                {!showDecisionForm && (
+                                    <button className="dc-btn-add" onClick={() => setShowDecisionForm(true)}>
+                                        <Plus size={14} /> Nouvelle décision
+                                    </button>
+                                )}
+                            </div>
+                            {showDecisionForm && (
+                                <div className="dc-form">
+                                    <input className="dc-input" placeholder="Titre de la décision" value={newDecision.title} onChange={e => setNewDecision(p => ({ ...p, title: e.target.value }))} />
+                                    <textarea className="dc-input" style={{ minHeight: 80, resize: 'none' }} placeholder="Description ou contexte (optionnel)" value={newDecision.description} onChange={e => setNewDecision(p => ({ ...p, description: e.target.value }))} />
+                                    <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                                        La décision sera soumise en statut <strong style={{ color: '#f59e0b' }}>En attente</strong> pour validation par les admins.
+                                    </div>
+                                    <div className="dc-form-actions">
+                                        <button className="dc-btn-cancel" onClick={() => setShowDecisionForm(false)}>Annuler</button>
+                                        <button className="dc-btn-submit" disabled={addingDecision} onClick={handleAddDecision}>Enregistrer</button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="dc-list">
+                                {decisions.length === 0 && <div className="dc-empty">Aucune décision enregistrée pour l'instant.</div>}
+                                {decisions.map(dec => {
+                                    const isAdminOrCreator = objective?.creator_id === user?.uid || memberships.find((m: any) => m.user_id === user?.uid)?.role === 'admin';
+                                    const commOpen = openDecComments.has(dec.id);
+                                    return (
+                                        <div key={dec.id} className="dc-card" style={{ flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '1.1rem 1.25rem 1rem 1.5rem', position: 'relative' }}>
+                                                <div className={`dc-card-stripe ${dec.outcome}`} />
+                                                <div className="dc-card-body">
+                                                    <div className="dc-card-title">{dec.title}</div>
+                                                    {dec.description && <div className="dc-card-desc">{dec.description}</div>}
+                                                    <div className="dc-card-meta">
+                                                        <span className={`dc-badge ${dec.outcome}`}>{dec.outcome === 'approved' ? 'Approuvée' : dec.outcome === 'rejected' ? 'Rejetée' : 'En attente'}</span>
+                                                        <span className="dc-meta-author">par {dec.creator_name}</span>
+                                                        {dec.created_at && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' }}>{fmtDate(dec.created_at)}</span>}
+                                                    </div>
+                                                    {isAdminOrCreator && (
+                                                        <div className="dc-outcome-actions">
+                                                            {dec.outcome !== 'approved' && <button className="dc-outcome-action approve" onClick={() => handleSetDecisionOutcome(dec.id, 'approved')}>✓ Approuver</button>}
+                                                            {dec.outcome !== 'rejected' && <button className="dc-outcome-action reject" onClick={() => handleSetDecisionOutcome(dec.id, 'rejected')}>✗ Rejeter</button>}
+                                                            {dec.outcome !== 'pending' && <button className="dc-outcome-action reset" onClick={() => handleSetDecisionOutcome(dec.id, 'pending')}>Remettre en attente</button>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {dec.creator_id === user?.uid && (
+                                                    <button className="dc-delete-btn" onClick={() => handleDeleteDecision(dec.id)}><Trash2 size={14} /></button>
+                                                )}
+                                            </div>
+                                            <div className="dc-comment-section">
+                                                <button className="dc-comment-toggle" onClick={() => toggleDecComments(dec.id)}>
+                                                    <MessageSquare size={12} /> {commOpen ? 'Masquer' : `Commentaires${decComments[dec.id]?.length ? ` (${decComments[dec.id].length})` : ''}`}
+                                                </button>
+                                                {commOpen && (
+                                                    <>
+                                                        {(decComments[dec.id] || []).length === 0 && <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.25)', marginTop: 8, fontStyle: 'italic' }}>Aucun commentaire.</div>}
+                                                        <div className="dc-comment-list">
+                                                            {(decComments[dec.id] || []).map((c: any) => (
+                                                                <div key={c.id} className="dc-comment-item">
+                                                                    <span className="dc-comment-author">{c.creator_name}</span>
+                                                                    <span className="dc-comment-text">{c.text}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="dc-comment-row">
+                                                            <input className="dc-comment-input" placeholder="Ajouter un commentaire…" value={decCommentInputs[dec.id] ?? ''} onChange={e => setDecCommentInputs(p => ({ ...p, [dec.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddDecComment(dec.id)} />
+                                                            <button className="dc-comment-send" onClick={() => handleAddDecComment(dec.id)}>Envoyer</button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── ANNONCES ─────────────────────────────────────────────── */}
+                {activeTab === 'annonces' && (
+                    <div style={{ padding: '0 2rem 2rem' }}>
+                        <style>{`
+                            .an-wrap { font-family: 'DM Sans', sans-serif; max-width: 860px; }
+                            .an-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+                            .an-title { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+                            .an-title-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+                            .an-btn-add { display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #f97316, #ea580c); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 8px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .an-btn-add:hover { opacity: 0.88; }
+                            .an-form { background: rgba(249,115,22,0.06); border: 1.5px solid rgba(249,115,22,0.22); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 10px; }
+                            .an-input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; padding: 10px 14px; outline: none; width: 100%; box-sizing: border-box; }
+                            .an-input:focus { border-color: rgba(249,115,22,0.5); }
+                            .an-input::placeholder { color: rgba(255,255,255,0.25); }
+                            .an-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+                            .an-btn-cancel { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: rgba(255,255,255,0.5); font-family: 'DM Sans', sans-serif; font-size: 0.83rem; padding: 7px 14px; cursor: pointer; }
+                            .an-btn-submit { background: #f97316; border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.83rem; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .an-btn-submit:disabled { opacity: 0.5; }
+                            .an-list { display: flex; flex-direction: column; gap: 14px; }
+                            .an-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 0; overflow: hidden; position: relative; }
+                            .an-card-top { height: 3px; background: linear-gradient(90deg, #f97316, #fbbf24, #f97316); }
+                            .an-card-inner { padding: 1.25rem 1.5rem; }
+                            .an-card-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.05rem; color: #fff; margin-bottom: 8px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+                            .an-card-body { font-size: 0.88rem; color: rgba(255,255,255,0.6); line-height: 1.65; }
+                            .an-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+                            .an-author-badge { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+                            .an-author-dot { width: 6px; height: 6px; border-radius: 50%; background: #f97316; }
+                            .an-delete-btn { background: none; border: none; color: rgba(255,255,255,0.25); cursor: pointer; padding: 2px; transition: color 0.15s; flex-shrink: 0; }
+                            .an-delete-btn:hover { color: #ef4444; }
+                            .an-empty { text-align: center; padding: 3rem; color: rgba(255,255,255,0.3); font-size: 0.9rem; }
+                            .an-comment-section { padding: 0.75rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.06); }
+                            .an-comment-toggle { background: none; border: none; color: rgba(255,255,255,0.35); font-family: 'DM Sans', sans-serif; font-size: 0.77rem; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 5px; }
+                            .an-comment-toggle:hover { color: rgba(255,255,255,0.65); }
+                            .an-comment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+                            .an-comment-item { display: flex; gap: 8px; align-items: flex-start; }
+                            .an-comment-author { font-size: 0.73rem; font-weight: 700; color: #f97316; flex-shrink: 0; }
+                            .an-comment-text { font-size: 0.82rem; color: rgba(255,255,255,0.6); line-height: 1.45; }
+                            .an-comment-row { display: flex; gap: 8px; margin-top: 10px; }
+                            .an-comment-input { flex: 1; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; padding: 7px 10px; outline: none; }
+                            .an-comment-input::placeholder { color: rgba(255,255,255,0.2); }
+                            .an-comment-send { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); border-radius: 8px; color: #f97316; font-size: 0.78rem; font-weight: 600; padding: 7px 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+                        `}</style>
+                        <div className="an-wrap">
+                            <div className="an-header">
+                                <div className="an-title">
+                                    <div className="an-title-icon"><Megaphone size={16} color="#fff" /></div>
+                                    Annonces
+                                </div>
+                                {!showAnnouncementForm && objective?.creator_id === user?.uid && (
+                                    <button className="an-btn-add" onClick={() => setShowAnnouncementForm(true)}>
+                                        <Plus size={14} /> Publier une annonce
+                                    </button>
+                                )}
+                            </div>
+                            {showAnnouncementForm && (
+                                <div className="an-form">
+                                    <input className="an-input" placeholder="Titre de l'annonce" value={newAnnouncement.title} onChange={e => setNewAnnouncement(p => ({ ...p, title: e.target.value }))} />
+                                    <textarea className="an-input" style={{ minHeight: 90, resize: 'none' }} placeholder="Corps de l'annonce…" value={newAnnouncement.body} onChange={e => setNewAnnouncement(p => ({ ...p, body: e.target.value }))} />
+                                    <div className="an-form-actions">
+                                        <button className="an-btn-cancel" onClick={() => setShowAnnouncementForm(false)}>Annuler</button>
+                                        <button className="an-btn-submit" disabled={addingAnnouncement} onClick={handleAddAnnouncement}>Publier</button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="an-list">
+                                {announcements.length === 0 && <div className="an-empty">Aucune annonce pour l'instant.</div>}
+                                {announcements.map(ann => {
+                                    const commOpen = openAnnComments.has(ann.id);
+                                    return (
+                                        <div key={ann.id} className="an-card">
+                                            <div className="an-card-top" />
+                                            <div className="an-card-inner">
+                                                <div className="an-card-title">
+                                                    <span>{ann.title}</span>
+                                                    {ann.creator_id === user?.uid && (
+                                                        <button className="an-delete-btn" onClick={() => handleDeleteAnnouncement(ann.id)}><Trash2 size={14} /></button>
+                                                    )}
+                                                </div>
+                                                {ann.body && <div className="an-card-body">{ann.body}</div>}
+                                                <div className="an-card-meta">
+                                                    <div className="an-author-badge">
+                                                        <div className="an-author-dot" />
+                                                        {ann.creator_name}
+                                                    </div>
+                                                    {ann.created_at && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' }}>{fmtDate(ann.created_at)}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="an-comment-section">
+                                                <button className="an-comment-toggle" onClick={() => toggleAnnComments(ann.id)}>
+                                                    <MessageSquare size={12} /> {commOpen ? 'Masquer' : `Commentaires${annComments[ann.id]?.length ? ` (${annComments[ann.id].length})` : ''}`}
+                                                </button>
+                                                {commOpen && (
+                                                    <>
+                                                        {(annComments[ann.id] || []).length === 0 && <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.25)', marginTop: 8, fontStyle: 'italic' }}>Aucun commentaire.</div>}
+                                                        <div className="an-comment-list">
+                                                            {(annComments[ann.id] || []).map((c: any) => (
+                                                                <div key={c.id} className="an-comment-item">
+                                                                    <span className="an-comment-author">{c.creator_name}</span>
+                                                                    <span className="an-comment-text">{c.text}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="an-comment-row">
+                                                            <input className="an-comment-input" placeholder="Ajouter un commentaire…" value={annCommentInputs[ann.id] ?? ''} onChange={e => setAnnCommentInputs(p => ({ ...p, [ann.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddAnnComment(ann.id)} />
+                                                            <button className="an-comment-send" onClick={() => handleAddAnnComment(ann.id)}>Envoyer</button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Q&A ──────────────────────────────────────────────────── */}
+                {activeTab === 'qa' && (
+                    <div style={{ padding: '0 2rem 2rem' }}>
+                        <style>{`
+                            .qa-wrap { font-family: 'DM Sans', sans-serif; max-width: 860px; }
+                            .qa-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+                            .qa-title { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+                            .qa-title-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+                            .qa-btn-ask { display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #4f46e5); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 8px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .qa-btn-ask:hover { opacity: 0.88; }
+                            .qa-form { background: rgba(99,102,241,0.06); border: 1.5px solid rgba(99,102,241,0.22); border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 10px; }
+                            .qa-input { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; padding: 10px 14px; outline: none; width: 100%; box-sizing: border-box; resize: none; }
+                            .qa-input:focus { border-color: rgba(99,102,241,0.5); }
+                            .qa-input::placeholder { color: rgba(255,255,255,0.25); }
+                            .qa-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+                            .qa-btn-cancel { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: rgba(255,255,255,0.5); font-family: 'DM Sans', sans-serif; font-size: 0.83rem; padding: 7px 14px; cursor: pointer; }
+                            .qa-btn-submit { background: #6366f1; border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.83rem; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: opacity 0.2s; }
+                            .qa-btn-submit:disabled { opacity: 0.5; }
+                            .qa-list { display: flex; flex-direction: column; gap: 16px; }
+                            .qa-thread { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; overflow: hidden; }
+                            .qa-q-row { display: flex; gap: 12px; padding: 1.1rem 1.25rem; }
+                            .qa-badge-q { flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; margin-top: 1px; }
+                            .qa-badge-a { flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; color: #fff; margin-top: 1px; }
+                            .qa-q-text { font-size: 0.95rem; color: rgba(255,255,255,0.88); line-height: 1.55; flex: 1; }
+                            .qa-q-meta { font-size: 0.73rem; color: rgba(255,255,255,0.35); margin-top: 5px; }
+                            .qa-q-actions { display: flex; gap: 6px; align-items: flex-start; }
+                            .qa-del-btn { background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer; padding: 2px; }
+                            .qa-del-btn:hover { color: #ef4444; }
+                            .qa-answer-row { border-top: 1px solid rgba(255,255,255,0.06); background: rgba(16,185,129,0.04); display: flex; gap: 12px; padding: 1rem 1.25rem; }
+                            .qa-a-text { font-size: 0.9rem; color: rgba(255,255,255,0.75); line-height: 1.55; flex: 1; }
+                            .qa-a-meta { font-size: 0.73rem; color: rgba(255,255,255,0.35); margin-top: 5px; }
+                            .qa-reply-row { border-top: 1px solid rgba(255,255,255,0.06); padding: 0.75rem 1.25rem; display: flex; gap: 8px; }
+                            .qa-reply-input { flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; padding: 8px 12px; outline: none; }
+                            .qa-reply-input:focus { border-color: rgba(16,185,129,0.4); }
+                            .qa-reply-input::placeholder { color: rgba(255,255,255,0.2); }
+                            .qa-reply-btn { background: #10b981; border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 600; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+                            .qa-reply-btn:disabled { opacity: 0.5; }
+                            .qa-empty { text-align: center; padding: 3rem; color: rgba(255,255,255,0.3); font-size: 0.9rem; }
+                        `}</style>
+                        <div className="qa-wrap">
+                            <div className="qa-header">
+                                <div className="qa-title">
+                                    <div className="qa-title-icon"><HelpCircle size={16} color="#fff" /></div>
+                                    Questions & Réponses
+                                </div>
+                                {!showQuestionForm && (
+                                    <button className="qa-btn-ask" onClick={() => setShowQuestionForm(true)}>
+                                        <Plus size={14} /> Poser une question
+                                    </button>
+                                )}
+                            </div>
+                            {showQuestionForm && (
+                                <div className="qa-form">
+                                    <textarea className="qa-input" style={{ minHeight: 80 }} placeholder="Votre question…" value={newQuestionText} onChange={e => setNewQuestionText(e.target.value)} />
+                                    <div className="qa-form-actions">
+                                        <button className="qa-btn-cancel" onClick={() => setShowQuestionForm(false)}>Annuler</button>
+                                        <button className="qa-btn-submit" disabled={addingQuestion} onClick={handleAddQuestion}>Envoyer</button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="qa-list">
+                                {questions.length === 0 && <div className="qa-empty">Aucune question pour l'instant — soyez le premier à en poser une !</div>}
+                                {questions.map(q => (
+                                    <div key={q.id} className="qa-thread">
+                                        <div className="qa-q-row">
+                                            <div className="qa-badge-q">Q</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div className="qa-q-text">{q.question}</div>
+                                                <div className="qa-q-meta">posée par {q.creator_name}{q.created_at && <span style={{ marginLeft: 8, opacity: 0.7 }}>· {fmtDate(q.created_at)}</span>}</div>
+                                            </div>
+                                            {q.creator_id === user?.uid && (
+                                                <div className="qa-q-actions">
+                                                    <button className="qa-del-btn" onClick={() => handleDeleteQuestion(q.id)}><Trash2 size={13} /></button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {q.answer ? (
+                                            <div className="qa-answer-row">
+                                                <div className="qa-badge-a">R</div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div className="qa-a-text">{q.answer}</div>
+                                                    <div className="qa-a-meta">répondu par {q.answered_by}{q.answered_at && <span style={{ marginLeft: 8, opacity: 0.7 }}>· {fmtDate(q.answered_at)}</span>}</div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="qa-reply-row">
+                                                <input className="qa-reply-input" placeholder="Votre réponse…" value={answerInputs[q.id] ?? ''} onChange={e => setAnswerInputs(p => ({ ...p, [q.id]: e.target.value }))} />
+                                                <button className="qa-reply-btn" disabled={answeringId === q.id} onClick={() => handleAnswerQuestion(q.id)}>Répondre</button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
-                        )}
+                        </div>
                     </div>
                 )}
+
+                {/* ── FOCUS DU JOUR ────────────────────────────────────────── */}
+                {activeTab === 'focus' && (
+                    <div style={{ padding: '0 2rem 2rem' }}>
+                        <style>{`
+                            .fd-wrap { font-family: 'DM Sans', sans-serif; max-width: 900px; }
+                            .fd-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+                            .fd-title { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+                            .fd-title-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #ec4899, #db2777); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+                            .fd-date-badge { font-size: 0.78rem; color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.06); border-radius: 20px; padding: 4px 12px; border: 1px solid rgba(255,255,255,0.09); }
+                            .fd-mine { background: rgba(236,72,153,0.07); border: 1.5px solid rgba(236,72,153,0.22); border-radius: 16px; padding: 1.25rem 1.5rem; margin-bottom: 1.75rem; }
+                            .fd-mine-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: #ec4899; font-weight: 700; margin-bottom: 10px; }
+                            .fd-mine-row { display: flex; gap: 10px; align-items: flex-end; }
+                            .fd-mine-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(236,72,153,0.25); border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.95rem; padding: 10px 14px; outline: none; }
+                            .fd-mine-input:focus { border-color: rgba(236,72,153,0.55); }
+                            .fd-mine-input::placeholder { color: rgba(255,255,255,0.25); }
+                            .fd-mine-btn { background: linear-gradient(135deg, #ec4899, #db2777); border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600; padding: 10px 18px; cursor: pointer; white-space: nowrap; transition: opacity 0.2s; }
+                            .fd-mine-btn:disabled { opacity: 0.5; }
+                            .fd-section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.35); font-weight: 700; margin-bottom: 12px; }
+                            .fd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+                            .fd-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 1.1rem 1.25rem; position: relative; overflow: hidden; transition: border-color 0.2s; }
+                            .fd-card:hover { border-color: rgba(236,72,153,0.25); }
+                            .fd-card.is-me { border-color: rgba(236,72,153,0.35); background: rgba(236,72,153,0.06); }
+                            .fd-card-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle, rgba(236,72,153,0.12), transparent 70%); pointer-events: none; }
+                            .fd-card-name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.88rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+                            .fd-card-dot { width: 6px; height: 6px; border-radius: 50%; background: #ec4899; flex-shrink: 0; }
+                            .fd-card-focus { font-size: 0.93rem; color: rgba(255,255,255,0.85); line-height: 1.55; }
+                            .fd-me-badge { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; background: rgba(236,72,153,0.25); color: #ec4899; border-radius: 20px; padding: 1px 7px; margin-left: auto; }
+                            .fd-card-actions { display: flex; gap: 4px; margin-left: 6px; }
+                            .fd-action-btn { background: none; border: none; color: rgba(255,255,255,0.25); cursor: pointer; padding: 2px; border-radius: 5px; transition: color 0.15s; line-height: 1; }
+                            .fd-action-btn:hover { color: #ec4899; }
+                            .fd-action-btn.del:hover { color: #ef4444; }
+                            .fd-empty-team { text-align: center; padding: 1.5rem; color: rgba(255,255,255,0.25); font-size: 0.85rem; font-style: italic; }
+                        `}</style>
+                        <div className="fd-wrap">
+                            <div className="fd-header">
+                                <div className="fd-title">
+                                    <div className="fd-title-icon"><Crosshair size={16} color="#fff" /></div>
+                                    Focus du jour
+                                </div>
+                                <span className="fd-date-badge">{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                            </div>
+                            <div className="fd-mine">
+                                <div className="fd-mine-label">Mon focus aujourd'hui</div>
+                                <div className="fd-mine-row">
+                                    <input className="fd-mine-input" placeholder="Sur quoi allez-vous vous concentrer aujourd'hui ?" value={myFocusText} onChange={e => { setMyFocusText(e.target.value); setFocusError(''); }} onKeyDown={e => e.key === 'Enter' && handleSaveFocus()} />
+                                    <button className="fd-mine-btn" disabled={savingFocus} onClick={handleSaveFocus}>{savingFocus ? '…' : focusSaved ? '✓ Sauvegardé' : 'Sauvegarder'}</button>
+                                </div>
+                                {focusError && <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#f87171' }}>{focusError}</div>}
+                            </div>
+                            <div className="fd-section-label">Focus de l'équipe</div>
+                            <div className="fd-grid">
+                                {dailyFocusItems.length === 0 && (
+                                    <div className="fd-empty-team" style={{ gridColumn: '1/-1' }}>Aucun focus partagé aujourd'hui.</div>
+                                )}
+                                {dailyFocusItems.map(f => {
+                                    const isMe = f.user_id === user?.uid;
+                                    return (
+                                        <div key={f.id} className={`fd-card${isMe ? ' is-me' : ''}`}>
+                                            <div className="fd-card-glow" />
+                                            <div className="fd-card-name">
+                                                <div className="fd-card-dot" />
+                                                {f.user_name}
+                                                {isMe && <span className="fd-me-badge">Moi</span>}
+                                                {isMe && (
+                                                    <div className="fd-card-actions">
+                                                        <button className="fd-action-btn" title="Modifier" onClick={() => setMyFocusText(f.focus)}><Edit3 size={12} /></button>
+                                                        <button className="fd-action-btn del" title="Supprimer" onClick={handleDeleteFocus}><Trash2 size={12} /></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="fd-card-focus">{f.focus}</div>
+                                            {f.created_at && <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>{fmtDate(f.created_at)}</div>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* ── ROADMAP ─────────────────────────────────────────────── */}
+                {activeTab === 'roadmap' && (() => {
+                    // ─── VIEW SETUP ───────────────────────────────────────────
+                    const LW = 160;
+                    const CW = rmZoom;
+                    const PCOLS = ['#6366f1','#ec4899','#f97316','#10b981','#f59e0b','#14b8a6','#8b5cf6','#3b82f6'];
+                    const MCOL: Record<string,string> = { milestone:'#f59e0b', deadline:'#ef4444', launch:'#10b981', review:'#3b82f6' };
+                    const MLBL: Record<string,string> = { milestone:'Jalon', deadline:'Deadline', launch:'Lancement', review:'Revue' };
+                    const isAoC = objective?.creator_id === user?.uid || memberships.find((m: any) => m.user_id === user?.uid)?.role === 'admin';
+                    const STICKY_BG = 'rgba(10,10,18,0.98)';
+                    const cm = new Date();
+
+                    const ZOOM_STEPS = rmView === 'week'
+                        ? [25, 35, 50, 70, 100, 140, 200, 280]
+                        : rmView === 'quarter'
+                            ? [160, 220, 300, 400, 540]
+                            : [45, 60, 80, 100, 130, 165, 210, 280, 380, 520];
+
+                    // Build columns & visible range
+                    type Col = { d: Date; label: string; subLabel?: string; accent: boolean; isNew: boolean };
+                    const cols: Col[] = [];
+                    let vs: Date, ve: Date;
+
+                    const getISOWeek = (d: Date) => {
+                        const t = new Date(d); t.setDate(t.getDate() + 3 - (t.getDay() + 6) % 7);
+                        const w1 = new Date(t.getFullYear(), 0, 4);
+                        return 1 + Math.round(((t.getTime() - w1.getTime()) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7);
+                    };
+
+                    if (rmView === 'week') {
+                        const COLS = 26;
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const dow = today.getDay() || 7;
+                        vs = new Date(today); vs.setDate(today.getDate() - (dow - 1) - 3*7 + rmOffset * 7);
+                        ve = new Date(vs); ve.setDate(vs.getDate() + COLS * 7);
+                        for (let i = 0; i < COLS; i++) {
+                            const d = new Date(vs); d.setDate(d.getDate() + i * 7);
+                            const wn = getISOWeek(d);
+                            const isMonthStart = d.getDate() <= 7;
+                            const monthLbl = isMonthStart ? d.toLocaleDateString('fr-FR', { month: 'short' }) : '';
+                            cols.push({ d, label: `S${String(wn).padStart(2,'0')}`, subLabel: monthLbl, accent: isMonthStart, isNew: isMonthStart });
+                        }
+                    } else if (rmView === 'quarter') {
+                        const COLS = 8;
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const curQ = Math.floor(today.getMonth() / 3);
+                        vs = new Date(today.getFullYear(), curQ * 3 - 3 + rmOffset * 3, 1);
+                        ve = new Date(vs.getFullYear(), vs.getMonth() + COLS * 3, 1);
+                        for (let i = 0; i < COLS; i++) {
+                            const d = new Date(vs.getFullYear(), vs.getMonth() + i * 3, 1);
+                            const q = Math.floor(d.getMonth() / 3) + 1;
+                            const isYS = q === 1;
+                            cols.push({ d, label: `T${q}`, subLabel: String(d.getFullYear()), accent: isYS, isNew: isYS });
+                        }
+                    } else {
+                        const COLS = 14;
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        vs = new Date(today.getFullYear(), today.getMonth() - 2 + rmOffset, 1);
+                        ve = new Date(vs.getFullYear(), vs.getMonth() + COLS, 1);
+                        for (let i = 0; i < COLS; i++) {
+                            const d = new Date(vs.getFullYear(), vs.getMonth() + i, 1);
+                            const q = Math.floor(d.getMonth() / 3) + 1;
+                            const qStart = d.getMonth() % 3 === 0;
+                            cols.push({ d, label: d.toLocaleDateString('fr-FR', { month: 'short' }), subLabel: qStart ? `T${q} ${d.getFullYear()}` : undefined, accent: qStart, isNew: qStart });
+                        }
+                    }
+
+                    const totalMs = ve.getTime() - vs.getTime();
+                    const TW = cols.length * CW;
+                    const dateToX = (ds: string) => { const d = new Date(ds + 'T00:00:00'); return Math.round(((d.getTime() - vs.getTime()) / totalMs) * TW); };
+                    const now = new Date(); const todayX = Math.round(((now.getTime() - vs.getTime()) / totalMs) * TW); const todayInView = todayX >= 0 && todayX <= TW;
+
+                    const showWeeks = rmView === 'month' && CW >= 185;
+                    const showDays = rmView === 'month' && CW >= 420;
+                    const showMonthsInQ = rmView === 'quarter' && CW >= 250;
+
+                    // ─── DATE PICKER ──────────────────────────────────────────
+                    const renderPicker = (fid: string, val: string, onChange: (v: string) => void, ph: string) => {
+                        const isOpen = rmPickerOpen === fid;
+                        const fmtVal = val ? new Date(val + 'T00:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' }) : '';
+                        const calY = rmPickerCal.y; const calM = rmPickerCal.m;
+                        const firstDay = new Date(calY, calM, 1).getDay();
+                        const daysInMonth = new Date(calY, calM + 1, 0).getDate();
+                        const prevMonth = () => { const nm = calM === 0 ? { y: calY-1, m: 11 } : { y: calY, m: calM-1 }; setRmPickerCal(nm); };
+                        const nextMonth = () => { const nm = calM === 11 ? { y: calY+1, m: 0 } : { y: calY, m: calM+1 }; setRmPickerCal(nm); };
+                        const DAY_NAMES = ['D','L','M','M','J','V','S'];
+                        const cells: (number|null)[] = [];
+                        const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+                        for (let i = 0; i < startOffset; i++) cells.push(null);
+                        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                        while (cells.length % 7 !== 0) cells.push(null);
+                        const selD = val ? new Date(val + 'T00:00:00') : null;
+                        const todayD = new Date(); todayD.setHours(0,0,0,0);
+                        return (
+                            <div style={{ position: 'relative' }}>
+                                <button type="button" className="rm-dp-btn" onClick={() => { setRmPickerOpen(isOpen ? null : fid); setRmPickerCal({ y: selD ? selD.getFullYear() : new Date().getFullYear(), m: selD ? selD.getMonth() : new Date().getMonth() }); }}>
+                                    <span style={{ color: fmtVal ? '#fff' : 'rgba(255,255,255,0.25)' }}>{fmtVal || ph}</span>
+                                    <Calendar size={13} color="rgba(245,158,11,0.7)" />
+                                </button>
+                                {isOpen && (<>
+                                    <div style={{ position:'fixed', inset:0, zIndex:198 }} onClick={() => setRmPickerOpen(null)} />
+                                    <div className="rm-dp-popup">
+                                        <div className="rm-dp-nav">
+                                            <button type="button" className="rm-dp-nav-btn" onClick={prevMonth}>‹</button>
+                                            <span className="rm-dp-month-label">{new Date(calY, calM).toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</span>
+                                            <button type="button" className="rm-dp-nav-btn" onClick={nextMonth}>›</button>
+                                        </div>
+                                        <div className="rm-dp-grid">
+                                            {DAY_NAMES.map((d,i) => <div key={i} className="rm-dp-dow">{d}</div>)}
+                                            {cells.map((d,i) => {
+                                                if (!d) return <div key={i} />;
+                                                const thisDate = new Date(calY, calM, d); thisDate.setHours(0,0,0,0);
+                                                const isToday = thisDate.getTime() === todayD.getTime();
+                                                const isSel = selD ? thisDate.getTime() === selD.getTime() : false;
+                                                const ds = `${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                                                return <button key={i} type="button" className={`rm-dp-day${isSel?' rm-dp-sel':''}${isToday&&!isSel?' rm-dp-today':''}`} onClick={() => { onChange(ds); setRmPickerOpen(null); }}>{d}</button>;
+                                            })}
+                                        </div>
+                                        <div className="rm-dp-foot">
+                                            <button type="button" className="rm-dp-clear" onClick={() => { onChange(''); setRmPickerOpen(null); }}>Effacer</button>
+                                            <button type="button" className="rm-dp-now" onClick={() => { const t = new Date(); onChange(`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`); setRmPickerOpen(null); }}>Aujourd'hui</button>
+                                        </div>
+                                    </div>
+                                </>)}
+                            </div>
+                        );
+                    };
+
+                    return (
+                        <div style={{ padding: '0 2rem 2rem' }}>
+                            <style>{`
+                                .rm-wrap{font-family:'DM Sans',sans-serif;max-width:100%}
+                                .rm-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:12px}
+                                .rm-title{font-family:'Outfit',sans-serif;font-size:1.3rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:10px}
+                                .rm-title-icon{width:32px;height:32px;background:linear-gradient(135deg,#f59e0b,#b45309);border-radius:8px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px rgba(245,158,11,0.3)}
+                                .rm-hdr-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+                                .rm-view-grp{display:flex;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:10px;overflow:hidden;flex-shrink:0}
+                                .rm-view-btn{background:transparent;border:none;color:rgba(255,255,255,0.45);font-family:'DM Sans',sans-serif;font-size:0.8rem;font-weight:500;padding:7px 15px;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+                                .rm-view-btn:hover{color:#fff;background:rgba(255,255,255,0.06)}
+                                .rm-view-btn-active{background:rgba(245,158,11,0.15)!important;color:#f59e0b!important;font-weight:700!important}
+                                .rm-nav-grp{display:flex;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:9px;overflow:hidden}
+                                .rm-nav-btn{background:transparent;border:none;color:rgba(255,255,255,0.5);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:7px 14px;cursor:pointer;transition:all 0.15s}
+                                .rm-nav-btn:hover{background:rgba(255,255,255,0.08);color:#fff}
+                                .rm-today-btn{background:transparent;border:none;border-left:1px solid rgba(255,255,255,0.09);border-right:1px solid rgba(255,255,255,0.09);color:#f59e0b;font-family:'DM Sans',sans-serif;font-size:0.78rem;padding:7px 13px;cursor:pointer;font-weight:600}
+                                .rm-add-phase{display:flex;align-items:center;gap:5px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:9px;color:#f59e0b;font-family:'DM Sans',sans-serif;font-size:0.83rem;font-weight:600;padding:7px 14px;cursor:pointer;transition:all 0.15s}
+                                .rm-add-phase:hover{background:rgba(245,158,11,0.2)}
+                                .rm-add-ms{display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,#f59e0b,#b45309);border:none;border-radius:9px;color:#1a0900;font-family:'DM Sans',sans-serif;font-size:0.83rem;font-weight:700;padding:7px 14px;cursor:pointer;box-shadow:0 4px 14px rgba(245,158,11,0.2)}
+                                .rm-zoom-grp{display:flex;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:9px;overflow:hidden;align-items:center}
+                                .rm-zoom-btn{background:transparent;border:none;color:rgba(255,255,255,0.5);font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1;padding:6px 13px;cursor:pointer;transition:all 0.15s;user-select:none}
+                                .rm-zoom-btn:hover{background:rgba(255,255,255,0.08);color:#fff}
+                                .rm-zoom-btn:disabled{opacity:0.25;cursor:not-allowed}
+                                .rm-form{background:rgba(245,158,11,0.05);border:1.5px solid rgba(245,158,11,0.18);border-radius:14px;padding:1.25rem;margin-bottom:1.5rem;display:flex;flex-direction:column;gap:10px}
+                                .rm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+                                .rm-lbl{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35);margin-bottom:5px;font-weight:600;font-family:'Outfit',sans-serif}
+                                .rm-inp{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;padding:9px 13px;outline:none;width:100%;box-sizing:border-box}
+                                .rm-inp:focus{border-color:rgba(245,158,11,0.45)}
+                                .rm-inp::placeholder{color:rgba(255,255,255,0.2)}
+                                .rm-color-row{display:flex;gap:7px;flex-wrap:wrap}
+                                .rm-chip{width:24px;height:24px;border-radius:50%;cursor:pointer;transition:transform 0.15s;border:2px solid transparent;flex-shrink:0}
+                                .rm-chip:hover,.rm-chip.sel{border-color:rgba(255,255,255,0.85);transform:scale(1.2)}
+                                .rm-type-row{display:flex;gap:6px;flex-wrap:wrap}
+                                .rm-tc{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.45);font-family:'DM Sans',sans-serif;font-size:0.78rem;padding:5px 12px;cursor:pointer;transition:all 0.15s}
+                                .rm-tc.sel{background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#f59e0b}
+                                .rm-fa{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
+                                .rm-cancel{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.4);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:7px 14px;cursor:pointer}
+                                .rm-submit{background:#f59e0b;border:none;border-radius:8px;color:#1a0900;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:700;padding:7px 16px;cursor:pointer}
+                                .rm-submit:disabled{opacity:0.5;cursor:not-allowed}
+                                .rm-tl-outer{border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(0,0,0,0.22);overflow:hidden}
+                                .rm-tl-scroll{overflow-x:auto;overflow-y:visible}
+                                .rm-tl-scroll::-webkit-scrollbar{height:4px}
+                                .rm-tl-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,0.03)}
+                                .rm-tl-scroll::-webkit-scrollbar-thumb{background:rgba(245,158,11,0.3);border-radius:2px}
+                                .rm-empty-wrap{padding:4rem 2rem;text-align:center}
+                                .rm-empty-icon{width:60px;height:60px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.15);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}
+                                .rm-empty-title{font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:rgba(255,255,255,0.65);margin-bottom:6px}
+                                .rm-empty-sub{font-size:0.83rem;color:rgba(255,255,255,0.28);max-width:380px;margin:0 auto;line-height:1.6}
+                                .rm-dp-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:9px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;padding:9px 13px;cursor:pointer;width:100%;box-sizing:border-box;text-align:left;transition:border-color 0.15s}
+                                .rm-dp-btn:hover{border-color:rgba(245,158,11,0.35)}
+                                .rm-dp-popup{position:absolute;top:calc(100% + 6px);left:0;z-index:199;background:#141420;border:1px solid rgba(245,158,11,0.25);border-radius:14px;padding:14px;width:240px;box-shadow:0 20px 60px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.04)}
+                                .rm-dp-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+                                .rm-dp-nav-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:rgba(255,255,255,0.6);font-size:1rem;line-height:1;padding:4px 10px;cursor:pointer;transition:all 0.15s}
+                                .rm-dp-nav-btn:hover{background:rgba(245,158,11,0.15);color:#f59e0b;border-color:rgba(245,158,11,0.3)}
+                                .rm-dp-month-label{font-family:'Outfit',sans-serif;font-size:0.82rem;font-weight:700;color:#fff;text-transform:capitalize}
+                                .rm-dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+                                .rm-dp-dow{font-size:0.6rem;text-align:center;color:rgba(255,255,255,0.25);font-family:'Outfit',sans-serif;font-weight:700;text-transform:uppercase;padding:4px 0}
+                                .rm-dp-day{background:transparent;border:none;color:rgba(255,255,255,0.55);font-family:'DM Sans',sans-serif;font-size:0.78rem;cursor:pointer;border-radius:6px;padding:5px 0;transition:all 0.12s;width:100%}
+                                .rm-dp-day:hover{background:rgba(245,158,11,0.15);color:#f59e0b}
+                                .rm-dp-today{background:rgba(245,158,11,0.08);color:#f59e0b;font-weight:700}
+                                .rm-dp-sel{background:linear-gradient(135deg,#f59e0b,#b45309)!important;color:#1a0900!important;font-weight:700!important}
+                                .rm-dp-foot{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07)}
+                                .rm-dp-clear{background:transparent;border:none;color:rgba(255,255,255,0.3);font-family:'DM Sans',sans-serif;font-size:0.75rem;cursor:pointer;padding:0}
+                                .rm-dp-now{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:6px;color:#f59e0b;font-family:'DM Sans',sans-serif;font-size:0.75rem;font-weight:600;cursor:pointer;padding:4px 10px}
+                                .rm-detail{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:1.1rem 1.3rem;margin-bottom:1.25rem;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden}
+                                .rm-da{position:absolute;left:0;top:0;bottom:0;width:3px}
+                                .rm-dc{position:absolute;top:10px;right:12px;background:transparent;border:none;color:rgba(255,255,255,0.28);font-size:0.9rem;cursor:pointer;line-height:1;padding:2px 5px;border-radius:4px}
+                                .rm-dc:hover{color:#fff;background:rgba(255,255,255,0.08)}
+                                .rm-dt{font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;color:#fff;padding-right:28px}
+                                .rm-dm{font-size:0.75rem;color:rgba(255,255,255,0.38);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+                                .rm-ddesc{font-size:0.82rem;color:rgba(255,255,255,0.5);line-height:1.55;background:rgba(255,255,255,0.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(255,255,255,0.06)}
+                                .rm-dfoot{display:flex;gap:8px;margin-top:4px}
+                                .rm-edit-btn{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:7px;color:#f59e0b;font-family:'DM Sans',sans-serif;font-size:0.75rem;cursor:pointer;padding:5px 12px;transition:all 0.15s;display:flex;align-items:center;gap:5px}
+                                .rm-edit-btn:hover{background:rgba(245,158,11,0.2)}
+                                .rm-del-btn{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:7px;color:rgba(239,68,68,0.7);font-family:'DM Sans',sans-serif;font-size:0.75rem;cursor:pointer;padding:5px 12px;transition:all 0.15s;display:flex;align-items:center;gap:5px}
+                                .rm-del-btn:hover{background:rgba(239,68,68,0.18);color:#ef4444}
+
+                                .rm-ai-btn{display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(99,102,241,0.12));border:1px solid rgba(245,158,11,0.3);border-radius:9px;color:#f59e0b;font-family:'DM Sans',sans-serif;font-size:0.83rem;font-weight:700;padding:7px 14px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+                                .rm-ai-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(99,102,241,0.08));opacity:0;transition:opacity 0.2s}
+                                .rm-ai-btn:hover::before{opacity:1}
+                                .rm-ai-btn:hover{border-color:rgba(245,158,11,0.5);box-shadow:0 0 20px rgba(245,158,11,0.15)}
+                                .rm-ai-panel{background:linear-gradient(135deg,rgba(8,8,20,0.97),rgba(12,8,24,0.97));border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+                                .rm-ai-panel::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 0%,rgba(245,158,11,0.06) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(99,102,241,0.05) 0%,transparent 60%);pointer-events:none}
+                                .rm-ai-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+                                .rm-ai-title{display:flex;align-items:center;gap:10px;font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:800;color:#fff}
+                                .rm-ai-icon{width:34px;height:34px;background:linear-gradient(135deg,#f59e0b,#b45309);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 0 20px rgba(245,158,11,0.3),inset 0 1px 0 rgba(255,255,255,0.2)}
+                                .rm-ai-close{background:transparent;border:none;color:rgba(255,255,255,0.3);font-size:1.1rem;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;transition:all 0.15s}
+                                .rm-ai-close:hover{color:#fff;background:rgba(255,255,255,0.08)}
+                                .rm-ai-sources{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.1rem}
+                                .rm-ai-chip{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:4px 10px;font-size:0.72rem;color:rgba(255,255,255,0.5);font-family:'DM Sans',sans-serif}
+                                .rm-ai-chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+                                .rm-ai-chip-active{border-color:rgba(245,158,11,0.25);background:rgba(245,158,11,0.06);color:rgba(245,158,11,0.8)}
+                                .rm-ai-chip-active .rm-ai-chip-dot{background:#f59e0b;box-shadow:0 0 6px #f59e0b}
+                                .rm-ai-textarea{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.09);border-radius:12px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;line-height:1.6;padding:12px 16px;resize:none;width:100%;box-sizing:border-box;min-height:90px;outline:none;transition:border-color 0.2s}
+                                .rm-ai-textarea:focus{border-color:rgba(245,158,11,0.35)}
+                                .rm-ai-textarea::placeholder{color:rgba(255,255,255,0.2)}
+                                .rm-ai-actions{display:flex;gap:8px;margin-top:12px;align-items:center}
+                                .rm-ai-gen-btn{display:flex;align-items:center;gap:7px;background:linear-gradient(135deg,#f59e0b,#b45309);border:none;border-radius:10px;color:#1a0900;font-family:'Outfit',sans-serif;font-size:0.88rem;font-weight:800;padding:10px 20px;cursor:pointer;box-shadow:0 4px 20px rgba(245,158,11,0.25);transition:all 0.2s;letter-spacing:0.02em}
+                                .rm-ai-gen-btn:hover{box-shadow:0 6px 28px rgba(245,158,11,0.38);transform:translateY(-1px)}
+                                .rm-ai-gen-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+                                .rm-ai-hint{font-size:0.72rem;color:rgba(255,255,255,0.2);font-family:'DM Sans',sans-serif;line-height:1.5}
+                                .rm-ai-preview{margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,0.07)}
+                                .rm-ai-preview-title{font-family:'Outfit',sans-serif;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgba(245,158,11,0.7);margin-bottom:0.9rem;display:flex;align-items:center;gap:6px}
+                                .rm-ai-phase-item{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:6px}
+                                .rm-ai-phase-bar{width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:32px}
+                                .rm-ai-phase-info{flex:1;min-width:0}
+                                .rm-ai-phase-name{font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:2px}
+                                .rm-ai-phase-dates{font-size:0.72rem;color:rgba(255,255,255,0.35);font-family:'DM Sans',sans-serif}
+                                .rm-ai-phase-desc{font-size:0.73rem;color:rgba(255,255,255,0.4);margin-top:3px;line-height:1.4}
+                                .rm-ai-ms-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;margin-bottom:14px}
+                                .rm-ai-ms-tag{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:0.72rem;font-family:'DM Sans',sans-serif;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.55)}
+                                .rm-ai-ms-diamond{width:8px;height:8px;border-radius:2px;transform:rotate(45deg);flex-shrink:0}
+                                .rm-ai-apply-row{display:flex;gap:8px;margin-top:4px}
+                                .rm-ai-apply-btn{display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:9px;color:#fff;font-family:'Outfit',sans-serif;font-size:0.85rem;font-weight:700;padding:9px 18px;cursor:pointer;box-shadow:0 4px 16px rgba(16,185,129,0.2);transition:all 0.2s}
+                                .rm-ai-apply-btn:hover{box-shadow:0 6px 22px rgba(16,185,129,0.32);transform:translateY(-1px)}
+                                .rm-ai-apply-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+                                .rm-ai-regen-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:9px;color:rgba(255,255,255,0.4);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:9px 16px;cursor:pointer;transition:all 0.15s}
+                                .rm-ai-regen-btn:hover{border-color:rgba(255,255,255,0.25);color:rgba(255,255,255,0.7)}
+                                @keyframes rm-ai-pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+                                .rm-ai-generating{display:flex;align-items:center;gap:10px;padding:16px;background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.12);border-radius:12px;margin-top:12px}
+                                .rm-ai-gen-dots{display:flex;gap:4px}
+                                .rm-ai-gen-dot{width:6px;height:6px;border-radius:50%;background:#f59e0b;animation:rm-ai-pulse 1.4s ease-in-out infinite}
+                                .rm-ai-gen-dot:nth-child(2){animation-delay:0.2s}
+                                .rm-ai-gen-dot:nth-child(3){animation-delay:0.4s}
+                                .rm-ai-gen-text{font-size:0.8rem;color:rgba(245,158,11,0.7);font-family:'DM Sans',sans-serif}
+                            `}</style>
+                            <div className="rm-wrap">
+                                {/* ── HEADER ── */}
+                                <div className="rm-hdr">
+                                    <div className="rm-title">
+                                        <div className="rm-title-icon"><Map size={16} color="#fff" /></div>
+                                        Roadmap
+                                    </div>
+                                    <div className="rm-hdr-right">
+                                        {/* View selector */}
+                                        <div className="rm-view-grp">
+                                            {([['week','Semaine'],['month','Mois'],['quarter','Trimestre']] as const).map(([v, l]) => (
+                                                <button key={v} className={`rm-view-btn${rmView === v ? ' rm-view-btn-active' : ''}`} onClick={() => { setRmView(v); setRmOffset(0); setRmZoom(v === 'week' ? 70 : v === 'quarter' ? 280 : 130); setRmSelected(null); setRmEditing(null); }}>
+                                                    {l}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {/* Zoom */}
+                                        <div className="rm-zoom-grp">
+                                            <button className="rm-zoom-btn" disabled={rmZoom <= ZOOM_STEPS[0]} onClick={() => { const i = ZOOM_STEPS.indexOf(rmZoom); setRmZoom(i > 0 ? ZOOM_STEPS[i-1] : ZOOM_STEPS[0]); }}>−</button>
+                                            <button className="rm-zoom-btn" disabled={rmZoom >= ZOOM_STEPS[ZOOM_STEPS.length-1]} onClick={() => { const i = ZOOM_STEPS.indexOf(rmZoom); setRmZoom(i < ZOOM_STEPS.length-1 ? ZOOM_STEPS[i+1] : ZOOM_STEPS[ZOOM_STEPS.length-1]); }}>+</button>
+                                        </div>
+                                        {/* Navigation */}
+                                        <div className="rm-nav-grp">
+                                            <button className="rm-nav-btn" onClick={() => setRmOffset(o => o - (rmView === 'week' ? 4 : 1))}>← Préc</button>
+                                            <button className="rm-today-btn" onClick={() => setRmOffset(0)}>Aujourd'hui</button>
+                                            <button className="rm-nav-btn" onClick={() => setRmOffset(o => o + (rmView === 'week' ? 4 : 1))}>Suiv →</button>
+                                        </div>
+                                        {isAoC && (
+                                            <button className="rm-ai-btn" onClick={() => { setRmAiOpen(o => !o); setRmAiPreview(null); }}>
+                                                ✦ Générer avec IA
+                                            </button>
+                                        )}
+                                        {isAoC && <>
+                                            <button className="rm-add-phase" onClick={() => { setShowPhaseForm(true); setShowMilestoneForm(false); setRmSelected(null); setRmEditing(null); }}>
+                                                <Plus size={13} /> Phase
+                                            </button>
+                                            <button className="rm-add-ms" onClick={() => { setShowMilestoneForm(true); setShowPhaseForm(false); setRmSelected(null); setRmEditing(null); }}>
+                                                <Flag size={13} /> Jalon
+                                            </button>
+                                        </>}
+                                    </div>
+                                </div>
+
+
+                                {/* ── AI GENERATION PANEL ── */}
+                                {rmAiOpen && (() => {
+                                    const MCOL2: Record<string,string> = { milestone:'#f59e0b', deadline:'#ef4444', launch:'#10b981', review:'#3b82f6' };
+                                    const MLBL2: Record<string,string> = { milestone:'Jalon', deadline:'Deadline', launch:'Lancement', review:'Revue' };
+                                    const sources = [
+                                        { label: `${milestones.length} étape${milestones.length !== 1 ? 's' : ''}`, active: milestones.length > 0 },
+                                        { label: `${decisions.length} décision${decisions.length !== 1 ? 's' : ''}`, active: decisions.length > 0 },
+                                        { label: `${announcements.length} annonce${announcements.length !== 1 ? 's' : ''}`, active: announcements.length > 0 },
+                                        { label: `${questions.filter((q: any) => q.answer).length} Q&R`, active: questions.some((q: any) => q.answer) },
+                                        { label: `${resources.length} ressource${resources.length !== 1 ? 's' : ''}`, active: resources.length > 0 },
+                                        { label: `${memberships.length} membre${memberships.length !== 1 ? 's' : ''}`, active: memberships.length > 0 },
+                                    ];
+                                    return (
+                                        <div className="rm-ai-panel">
+                                            <div className="rm-ai-hdr">
+                                                <div className="rm-ai-title">
+                                                    <div className="rm-ai-icon">✦</div>
+                                                    Génération IA de Roadmap
+                                                </div>
+                                                <button className="rm-ai-close" onClick={() => { setRmAiOpen(false); setRmAiPreview(null); }}>✕</button>
+                                            </div>
+
+                                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans',sans-serif", marginBottom: 10 }}>Données analysées :</div>
+                                            <div className="rm-ai-sources">
+                                                {sources.map((s, i) => (
+                                                    <div key={i} className={`rm-ai-chip${s.active ? ' rm-ai-chip-active' : ''}`}>
+                                                        <div className="rm-ai-chip-dot" style={{ background: s.active ? '#f59e0b' : 'rgba(255,255,255,0.2)' }} />
+                                                        {s.label}
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Sans',sans-serif", marginBottom: 7 }}>Instructions supplémentaires <span style={{ color: 'rgba(255,255,255,0.18)' }}>(optionnel)</span></div>
+                                            <textarea
+                                                className="rm-ai-textarea"
+                                                placeholder="Ex: Le projet doit être livré avant fin juin. Priorisez la phase de tests. On a une contrainte de 3 développeurs disponibles seulement à partir de mars..."
+                                                value={rmAiPrompt}
+                                                onChange={e => setRmAiPrompt(e.target.value)}
+                                            />
+
+                                            <div className="rm-ai-actions">
+                                                <button className="rm-ai-gen-btn" disabled={rmAiGenerating} onClick={handleGenerateRoadmap}>
+                                                    {rmAiGenerating ? '⏳ Génération…' : '✦ Générer la roadmap'}
+                                                </button>
+                                                <div className="rm-ai-hint">L'IA analysera toutes les informations<br />de ce projet pour créer une roadmap personnalisée.</div>
+                                            </div>
+
+                                            {rmAiGenerating && (
+                                                <div className="rm-ai-generating">
+                                                    <div className="rm-ai-gen-dots">
+                                                        <div className="rm-ai-gen-dot" />
+                                                        <div className="rm-ai-gen-dot" />
+                                                        <div className="rm-ai-gen-dot" />
+                                                    </div>
+                                                    <div className="rm-ai-gen-text">Analyse des données et génération de la roadmap en cours…</div>
+                                                </div>
+                                            )}
+
+                                            {rmAiPreview && !rmAiGenerating && (
+                                                <div className="rm-ai-preview">
+                                                    <div className="rm-ai-preview-title">
+                                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                                                        Roadmap générée — {rmAiPreview.phases.length} phase{rmAiPreview.phases.length !== 1 ? 's' : ''}, {rmAiPreview.milestones.length} jalon{rmAiPreview.milestones.length !== 1 ? 's' : ''}
+                                                    </div>
+
+                                                    {rmAiPreview.phases.map((ph: any, i: number) => {
+                                                        const phaseMilestones = rmAiPreview.milestones.filter((ms: any) => ms.phase_index === i);
+                                                        return (
+                                                            <div key={i} className="rm-ai-phase-item">
+                                                                <div className="rm-ai-phase-bar" style={{ background: ph.color }} />
+                                                                <div className="rm-ai-phase-info">
+                                                                    <div className="rm-ai-phase-name">{ph.title}</div>
+                                                                    <div className="rm-ai-phase-dates">
+                                                                        {ph.start_date ? new Date(ph.start_date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '?'} → {ph.end_date ? new Date(ph.end_date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '?'}
+                                                                    </div>
+                                                                    {ph.description && <div className="rm-ai-phase-desc">{ph.description}</div>}
+                                                                    {phaseMilestones.length > 0 && (
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                                                                            {phaseMilestones.map((ms: any, j: number) => (
+                                                                                <div key={j} className="rm-ai-ms-tag">
+                                                                                    <div className="rm-ai-ms-diamond" style={{ background: MCOL2[ms.type] || '#f59e0b' }} />
+                                                                                    {ms.title} · {ms.date ? new Date(ms.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'}) : '?'}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {rmAiPreview.milestones.filter((ms: any) => ms.phase_index < 0).length > 0 && (
+                                                        <div style={{ marginBottom: 8 }}>
+                                                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.25)', marginBottom: 5, fontFamily: "'DM Sans',sans-serif" }}>Jalons sans phase</div>
+                                                            <div className="rm-ai-ms-list">
+                                                                {rmAiPreview.milestones.filter((ms: any) => ms.phase_index < 0).map((ms: any, j: number) => (
+                                                                    <div key={j} className="rm-ai-ms-tag">
+                                                                        <div className="rm-ai-ms-diamond" style={{ background: MCOL2[ms.type] || '#f59e0b' }} />
+                                                                        {ms.title} · {ms.date}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="rm-ai-apply-row">
+                                                        <button className="rm-ai-apply-btn" disabled={rmAiApplying} onClick={handleApplyRoadmap}>
+                                                            {rmAiApplying ? '⏳ Application…' : '✓ Appliquer cette roadmap'}
+                                                        </button>
+                                                        <button className="rm-ai-regen-btn" onClick={handleGenerateRoadmap}>↺ Regénérer</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ── PHASE FORM ── */}
+                                {showPhaseForm && (
+                                    <div className="rm-form">
+                                        <div className="rm-lbl">Nouvelle phase</div>
+                                        <input className="rm-inp" placeholder="Nom de la phase (ex: Recherche, MVP, Lancement…)" value={newPhase.title} onChange={e => setNewPhase(p => ({ ...p, title: e.target.value }))} />
+                                        <div className="rm-form-grid">
+                                            <div><div className="rm-lbl">Début</div>{renderPicker('phase-start', newPhase.start_date, v => setNewPhase(p => ({ ...p, start_date: v })), 'Choisir une date')}</div>
+                                            <div><div className="rm-lbl">Fin</div>{renderPicker('phase-end', newPhase.end_date, v => setNewPhase(p => ({ ...p, end_date: v })), 'Choisir une date')}</div>
+                                        </div>
+                                        <div>
+                                            <div className="rm-lbl" style={{ marginBottom: 8 }}>Couleur</div>
+                                            <div className="rm-color-row">{PCOLS.map(c => <div key={c} className={`rm-chip${newPhase.color === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setNewPhase(p => ({ ...p, color: c }))} />)}</div>
+                                        </div>
+                                        <textarea className="rm-inp" style={{ minHeight: 56, resize: 'none' }} placeholder="Description (optionnel)" value={newPhase.description} onChange={e => setNewPhase(p => ({ ...p, description: e.target.value }))} />
+                                        <div className="rm-fa">
+                                            <button className="rm-cancel" onClick={() => setShowPhaseForm(false)}>Annuler</button>
+                                            <button className="rm-submit" disabled={addingPhase} onClick={handleAddPhase}>Ajouter la phase</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── MILESTONE FORM ── */}
+                                {showMilestoneForm && (
+                                    <div className="rm-form">
+                                        <div className="rm-lbl">Nouveau jalon</div>
+                                        <input className="rm-inp" placeholder="Nom du jalon (ex: MVP livré, Demo client, Release v1…)" value={newMilestone.title} onChange={e => setNewMilestone(p => ({ ...p, title: e.target.value }))} />
+                                        <div className="rm-form-grid">
+                                            <div><div className="rm-lbl">Date</div>{renderPicker('ms-date', newMilestone.date, v => setNewMilestone(p => ({ ...p, date: v })), 'Choisir une date')}</div>
+                                            <div>
+                                                <div className="rm-lbl">Phase associée</div>
+                                                <select className="rm-inp" value={newMilestone.phase_id} onChange={e => setNewMilestone(p => ({ ...p, phase_id: e.target.value }))}>
+                                                    <option value="">Aucune</option>
+                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="rm-lbl" style={{ marginBottom: 8 }}>Type</div>
+                                            <div className="rm-type-row">
+                                                {(['milestone','deadline','launch','review'] as const).map(t => (
+                                                    <button key={t} className={`rm-tc${newMilestone.type === t ? ' sel' : ''}`} onClick={() => setNewMilestone(p => ({ ...p, type: t }))}>{MLBL[t]}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="rm-fa">
+                                            <button className="rm-cancel" onClick={() => setShowMilestoneForm(false)}>Annuler</button>
+                                            <button className="rm-submit" disabled={addingMilestone} onClick={handleAddMilestone}>Ajouter le jalon</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── DETAIL / EDIT PANEL ── */}
+                                {rmSelected && (() => {
+                                    const isPhase = rmSelected.type === 'phase';
+                                    const d = rmSelected.data;
+                                    const col = isPhase ? d.color : (MCOL[d.type] || '#f59e0b');
+                                    const canEdit = isAoC || d.creator_id === user?.uid;
+                                    const isEditMode = rmEditing?.data.id === d.id;
+
+                                    if (isEditMode) {
+                                        return (
+                                            <div className="rm-detail">
+                                                <div className="rm-da" style={{ background: col }} />
+                                                <div className="rm-dt" style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.5)', fontWeight: 500, fontFamily: "'DM Sans',sans-serif" }}>Modifier {isPhase ? 'la phase' : 'le jalon'}</div>
+                                                <input className="rm-inp" style={{ marginTop: 2 }} value={editData.title || ''} onChange={e => setEditData((p: any) => ({ ...p, title: e.target.value }))} placeholder={isPhase ? 'Nom de la phase' : 'Nom du jalon'} />
+                                                {isPhase ? (<>
+                                                    <div className="rm-form-grid">
+                                                        <div><div className="rm-lbl">Début</div>{renderPicker('edit-ps', editData.start_date || '', v => setEditData((p: any) => ({ ...p, start_date: v })), 'Date de début')}</div>
+                                                        <div><div className="rm-lbl">Fin</div>{renderPicker('edit-pe', editData.end_date || '', v => setEditData((p: any) => ({ ...p, end_date: v })), 'Date de fin')}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="rm-lbl" style={{ marginBottom: 8 }}>Couleur</div>
+                                                        <div className="rm-color-row">{PCOLS.map(c => <div key={c} className={`rm-chip${(editData.color||'#6366f1') === c ? ' sel' : ''}`} style={{ background: c }} onClick={() => setEditData((p: any) => ({ ...p, color: c }))} />)}</div>
+                                                    </div>
+                                                    <textarea className="rm-inp" style={{ minHeight: 52, resize: 'none' }} placeholder="Description (optionnel)" value={editData.description || ''} onChange={e => setEditData((p: any) => ({ ...p, description: e.target.value }))} />
+                                                </>) : (<>
+                                                    <div><div className="rm-lbl">Date</div>{renderPicker('edit-md', editData.date || '', v => setEditData((p: any) => ({ ...p, date: v })), 'Date du jalon')}</div>
+                                                    <div>
+                                                        <div className="rm-lbl">Phase associée</div>
+                                                        <select className="rm-inp" value={editData.phase_id || ''} onChange={e => setEditData((p: any) => ({ ...p, phase_id: e.target.value }))}>
+                                                            <option value="">Aucune</option>
+                                                            {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <div className="rm-lbl" style={{ marginBottom: 8 }}>Type</div>
+                                                        <div className="rm-type-row">
+                                                            {(['milestone','deadline','launch','review'] as const).map(t => (
+                                                                <button key={t} className={`rm-tc${(editData.type||'milestone') === t ? ' sel' : ''}`} onClick={() => setEditData((p: any) => ({ ...p, type: t }))}>{MLBL[t]}</button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </>)}
+                                                <div className="rm-fa">
+                                                    <button className="rm-cancel" onClick={() => setRmEditing(null)}>Annuler</button>
+                                                    <button className="rm-submit" disabled={savingEdit} onClick={handleSaveEdit}>{savingEdit ? 'Enregistrement…' : 'Enregistrer'}</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="rm-detail">
+                                            <div className="rm-da" style={{ background: col }} />
+                                            <button className="rm-dc" onClick={() => { setRmSelected(null); setRmEditing(null); }}>✕</button>
+                                            <div className="rm-dt">{d.title}</div>
+                                            <div className="rm-dm">
+                                                {isPhase ? (<>
+                                                    <span>📅 {d.start_date ? new Date(d.start_date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
+                                                    <span>→ {d.end_date ? new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}) : '—'}</span>
+                                                    {d.start_date && d.end_date && <span style={{ color: col }}>{Math.round((new Date(d.end_date+'T00:00:00').getTime() - new Date(d.start_date+'T00:00:00').getTime()) / 86400000)} jours</span>}
+                                                </>) : (<>
+                                                    <span>📅 {d.date ? new Date(d.date+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : '—'}</span>
+                                                    <span style={{ background: `${col}22`, color: col, border: `1px solid ${col}44`, borderRadius: 5, padding: '1px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{MLBL[d.type]}</span>
+                                                </>)}
+                                                {d.creator_name && <span>👤 {d.creator_name}</span>}
+                                            </div>
+                                            {isPhase && d.description && <div className="rm-ddesc">{d.description}</div>}
+                                            {canEdit && (
+                                                <div className="rm-dfoot">
+                                                    <button className="rm-edit-btn" onClick={() => { setRmEditing({ type: rmSelected.type, data: d }); setEditData(isPhase ? { title: d.title, color: d.color, start_date: d.start_date, end_date: d.end_date, description: d.description || '' } : { title: d.title, date: d.date, type: d.type, phase_id: d.phase_id || '' }); }}>
+                                                        <Edit3 size={11} /> Modifier
+                                                    </button>
+                                                    <button className="rm-del-btn" onClick={() => { isPhase ? handleDeletePhase(d.id) : handleDeleteMilestone(d.id); setRmSelected(null); }}>
+                                                        <Trash2 size={11} /> Supprimer
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ── EMPTY STATE ── */}
+                                {roadmapPhases.length === 0 && roadmapMilestones.length === 0 && !showPhaseForm && !showMilestoneForm && (
+                                    <div className="rm-empty-wrap">
+                                        <div className="rm-empty-icon"><Map size={26} color="#f59e0b" /></div>
+                                        <div className="rm-empty-title">Votre roadmap est vierge</div>
+                                        <div className="rm-empty-sub">Créez des phases pour visualiser vos grandes étapes stratégiques, puis ponctuez-les de jalons clés sur la timeline.</div>
+                                    </div>
+                                )}
+
+                                {/* ── TIMELINE ── */}
+                                {(roadmapPhases.length > 0 || roadmapMilestones.length > 0) && (
+                                    <div className="rm-tl-outer">
+                                        <div className="rm-tl-scroll">
+                                            <div style={{ width: LW + TW, position: 'relative' }}>
+
+                                                {/* Header row */}
+                                                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.18)' }}>
+                                                    <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.07)', padding: '10px 14px', display: 'flex', alignItems: 'flex-end' }}>
+                                                        <span style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.11em', color: 'rgba(255,255,255,0.2)', fontFamily: "'Outfit',sans-serif", fontWeight: 700 }}>Phases</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex' }}>
+                                                        {cols.map((col, i) => {
+                                                            const isCurrentPeriod = (() => {
+                                                                if (rmView === 'week') { const wn = getISOWeek(cm); return col.label === `S${String(wn).padStart(2,'0')}` && col.d.getFullYear() === cm.getFullYear(); }
+                                                                if (rmView === 'quarter') { const q = Math.floor(cm.getMonth()/3)+1; return col.d.getFullYear() === cm.getFullYear() && `T${q}` === col.label; }
+                                                                return col.d.getMonth() === cm.getMonth() && col.d.getFullYear() === cm.getFullYear();
+                                                            })();
+                                                            return (
+                                                                <div key={i} style={{ width: CW, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderRight: '1px solid rgba(255,255,255,0.04)', position: 'relative', background: col.accent ? 'rgba(245,158,11,0.03)' : 'transparent', overflow: 'hidden' }}>
+                                                                    {col.accent && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'rgba(245,158,11,0.22)' }} />}
+                                                                    {col.subLabel && <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: '0.58rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: col.accent ? '#f59e0b' : 'rgba(255,255,255,0.3)', padding: '6px 0 2px 10px', lineHeight: 1 }}>{col.subLabel}</div>}
+                                                                    <div style={{ fontSize: rmView === 'week' ? '0.68rem' : '0.73rem', lineHeight: 1, color: isCurrentPeriod ? 'rgba(245,158,11,0.9)' : 'rgba(255,255,255,0.38)', fontWeight: isCurrentPeriod ? 700 : 400, fontFamily: "'DM Sans',sans-serif", padding: '4px 0 8px 10px' }}>
+                                                                        {col.label}
+                                                                    </div>
+                                                                    {showWeeks && (
+                                                                        <div style={{ display: 'flex', height: 8, marginBottom: 4 }}>
+                                                                            {Array.from({ length: 4 }, (_, wi) => <div key={wi} style={{ width: '25%', borderLeft: wi > 0 ? '1px dashed rgba(255,255,255,0.08)' : 'none', height: '100%' }} />)}
+                                                                        </div>
+                                                                    )}
+                                                                    {showDays && (() => {
+                                                                        const daysInM = new Date(col.d.getFullYear(), col.d.getMonth()+1, 0).getDate();
+                                                                        return (
+                                                                            <div style={{ display: 'flex' }}>
+                                                                                {Array.from({ length: daysInM }, (_, di) => (
+                                                                                    <div key={di} style={{ width: CW / daysInM, flexShrink: 0, textAlign: 'center', fontSize: '0.52rem', color: (di+1) === cm.getDate() && col.d.getMonth() === cm.getMonth() && col.d.getFullYear() === cm.getFullYear() ? '#f59e0b' : 'rgba(255,255,255,0.25)', paddingBottom: 4, borderRight: di < daysInM-1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>{di+1}</div>
+                                                                                ))}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                    {showMonthsInQ && (() => {
+                                                                        const mLabels = [0,1,2].map(mi => {
+                                                                            const md = new Date(col.d.getFullYear(), col.d.getMonth() + mi, 1);
+                                                                            return md.toLocaleDateString('fr-FR', { month: 'short' });
+                                                                        });
+                                                                        return (
+                                                                            <div style={{ display: 'flex', paddingBottom: 4 }}>
+                                                                                {mLabels.map((ml, mi) => <div key={mi} style={{ width: '33.33%', textAlign: 'center', fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', borderLeft: mi > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>{ml}</div>)}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Grid lines */}
+                                                {cols.map((col, i) => (
+                                                    <div key={i} style={{ position: 'absolute', left: LW + i * CW, top: 0, bottom: 0, width: 1, background: col.accent ? 'rgba(245,158,11,0.09)' : 'rgba(255,255,255,0.04)', zIndex: 0, pointerEvents: 'none' }} />
+                                                ))}
+                                                {showWeeks && cols.map((col, i) => {
+                                                    const daysInM = new Date(col.d.getFullYear(), col.d.getMonth()+1, 0).getDate();
+                                                    const pxPerDay = CW / daysInM;
+                                                    return [7, 14, 21].map(day => day < daysInM && (
+                                                        <div key={`${i}-w${day}`} style={{ position: 'absolute', left: LW + i * CW + day * pxPerDay, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.04)', zIndex: 0, pointerEvents: 'none', borderLeft: '1px dashed rgba(255,255,255,0.05)' }} />
+                                                    ));
+                                                })}
+
+                                                {/* Today line */}
+                                                {todayInView && (
+                                                    <div style={{ position: 'absolute', left: LW + todayX, top: 0, bottom: 0, width: 2, background: 'linear-gradient(180deg,#f59e0b 60%,rgba(245,158,11,0.1))', zIndex: 15, pointerEvents: 'none' }}>
+                                                        <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 14px rgba(245,158,11,0.9)' }} />
+                                                    </div>
+                                                )}
+
+                                                {/* Phase rows */}
+                                                {roadmapPhases.length === 0 && (
+                                                    <div style={{ display: 'flex', height: 56 }}>
+                                                        <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.07)', padding: '0 14px', display: 'flex', alignItems: 'center' }}>
+                                                            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>Aucune phase</span>
+                                                        </div>
+                                                        <div style={{ flex: 1 }} />
+                                                    </div>
+                                                )}
+                                                {roadmapPhases.map((phase, pi) => {
+                                                    const x1 = dateToX(phase.start_date);
+                                                    const x2 = dateToX(phase.end_date);
+                                                    const bw = Math.max(4, x2 - x1);
+                                                    const isSel = rmSelected?.type === 'phase' && rmSelected.data.id === phase.id;
+                                                    return (
+                                                        <div key={phase.id} style={{ display: 'flex', height: 52, borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSel ? `${phase.color}12` : pi % 2 === 1 ? 'rgba(255,255,255,0.01)' : 'transparent', transition: 'background 0.2s' }}>
+                                                            <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.07)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: phase.color, flexShrink: 0, boxShadow: `0 0 6px ${phase.color}88` }} />
+                                                                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif" }}>{phase.title}</span>
+                                                            </div>
+                                                            <div style={{ flex: 1, position: 'relative', zIndex: 2, overflow: 'hidden' }}>
+                                                                <div onClick={() => setRmSelected(isSel ? null : { type: 'phase', data: phase })} style={{ position: 'absolute', left: x1, width: bw, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 6, background: `linear-gradient(135deg,${phase.color}CC,${phase.color}88)`, border: isSel ? `2px solid ${phase.color}` : `1px solid ${phase.color}55`, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.7rem', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: isSel ? `0 0 20px ${phase.color}44` : `0 2px 14px ${phase.color}33`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                                                    {bw > 60 && phase.title}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {/* Milestones section */}
+                                                {roadmapMilestones.length > 0 && (
+                                                    <>
+                                                        <div style={{ display: 'flex', height: 22, background: 'rgba(0,0,0,0.18)', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                                                            <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: 'rgba(8,8,14,0.98)', borderRight: '1px solid rgba(255,255,255,0.07)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                                <Flag size={10} color="#f59e0b" />
+                                                                <span style={{ fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', fontFamily: "'Outfit',sans-serif", fontWeight: 700 }}>Jalons</span>
+                                                            </div>
+                                                            <div style={{ flex: 1 }} />
+                                                        </div>
+                                                        <div style={{ display: 'flex', height: 86 }}>
+                                                            <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.07)' }} />
+                                                            <div style={{ flex: 1, position: 'relative', zIndex: 2 }}>
+                                                                {roadmapMilestones.map(ms => {
+                                                                    const x = dateToX(ms.date);
+                                                                    const col = MCOL[ms.type] || '#f59e0b';
+                                                                    const isSel = rmSelected?.type === 'milestone' && rmSelected.data.id === ms.id;
+                                                                    return (
+                                                                        <div key={ms.id} onClick={() => setRmSelected(isSel ? null : { type: 'milestone', data: ms })} style={{ position: 'absolute', left: x, top: '50%', transform: 'translateX(-50%) translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 8, cursor: 'pointer' }} title={`${ms.title} — ${MLBL[ms.type]}`}>
+                                                                            <div style={{ width: isSel ? 16 : 13, height: isSel ? 16 : 13, borderRadius: 3, transform: 'rotate(45deg)', background: col, boxShadow: isSel ? `0 0 20px ${col}AA, 0 0 8px ${col}` : `0 0 12px ${col}77`, flexShrink: 0, border: isSel ? '2px solid rgba(255,255,255,0.6)' : 'none', transition: 'all 0.15s' }} />
+                                                                            <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                                                <div style={{ fontSize: '0.63rem', color: isSel ? '#fff' : 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", fontWeight: isSel ? 600 : 400 }}>{ms.title}</div>
+                                                                                <div style={{ fontSize: '0.57rem', color: col, fontFamily: "'Outfit',sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{MLBL[ms.type]}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
 
 
             </div>
