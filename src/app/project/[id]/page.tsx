@@ -3202,11 +3202,16 @@ export default function ProjectDetail() {
                                         <textarea className="input" rows={2} placeholder="Description / conseils (optionnel)" value={newGroupStep.description} onChange={e => setNewGroupStep(s => ({ ...s, description: e.target.value }))} />
                                         {roadmapPhases.length > 0 && (
                                             <div>
-                                                <label style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', display: 'block', marginBottom: 6 }}>Phase associée <span style={{ color: 'rgba(255,255,255,0.2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optionnel)</span></label>
-                                                <select className="input" value={newGroupStep.phase_id} onChange={e => setNewGroupStep(s => ({ ...s, phase_id: e.target.value }))} style={{ fontSize: '0.85rem' }}>
-                                                    <option value="">— Aucune phase —</option>
-                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
-                                                </select>
+                                                <label style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', display: 'block', marginBottom: 8 }}>Phase associée <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.16)', fontSize: '0.65rem' }}>(optionnel)</span></label>
+                                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                                    <button type="button" onClick={() => setNewGroupStep(s => ({ ...s, phase_id: '' }))} style={{ padding: '4px 12px', borderRadius: 30, fontSize: '0.68rem', fontWeight: 600, border: !newGroupStep.phase_id ? '1px solid rgba(255,255,255,0.22)' : '1px solid rgba(255,255,255,0.07)', background: !newGroupStep.phase_id ? 'rgba(255,255,255,0.07)' : 'transparent', color: !newGroupStep.phase_id ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.26)', cursor: 'pointer', transition: 'all 0.15s' }}>Aucune</button>
+                                                    {roadmapPhases.map(ph => (
+                                                        <button type="button" key={ph.id} onClick={() => setNewGroupStep(s => ({ ...s, phase_id: ph.id }))} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 30, fontSize: '0.68rem', fontWeight: 600, border: newGroupStep.phase_id === ph.id ? `1px solid ${ph.color}55` : '1px solid rgba(255,255,255,0.07)', background: newGroupStep.phase_id === ph.id ? ph.color + '16' : 'transparent', color: newGroupStep.phase_id === ph.id ? ph.color : 'rgba(255,255,255,0.3)', cursor: 'pointer', transition: 'all 0.15s', boxShadow: newGroupStep.phase_id === ph.id ? `0 0 8px ${ph.color}18` : 'none' }}>
+                                                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: ph.color, flexShrink: 0 }} />
+                                                            {ph.title}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                         <div className="flex gap-2">
@@ -3224,15 +3229,21 @@ export default function ProjectDetail() {
                                 )}
 
                                 {roadmapPhases.length > 0 && milestones.some(m => m.phase_id) && (
-                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>Filtrer :</span>
-                                        <button onClick={() => setMilestonePhaseFilter('all')} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: milestonePhaseFilter === 'all' ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.08)', background: milestonePhaseFilter === 'all' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === 'all' ? '#a5b4fc' : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s' }}>Toutes</button>
-                                        <button onClick={() => setMilestonePhaseFilter('none')} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: milestonePhaseFilter === 'none' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)', background: milestonePhaseFilter === 'none' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === 'none' ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s' }}>Sans phase</button>
-                                        {roadmapPhases.map(ph => (
-                                            <button key={ph.id} onClick={() => setMilestonePhaseFilter(ph.id)} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: `1px solid ${milestonePhaseFilter === ph.id ? ph.color + '80' : 'rgba(255,255,255,0.08)'}`, background: milestonePhaseFilter === ph.id ? ph.color + '20' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === ph.id ? ph.color : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: ph.color, display: 'inline-block', flexShrink: 0 }} />{ph.title}
-                                            </button>
-                                        ))}
+                                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center', padding: '7px 12px', background: 'rgba(255,255,255,0.018)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <span style={{ fontSize: '0.57rem', fontWeight: 800, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.16)', textTransform: 'uppercase', marginRight: 4, alignSelf: 'center', flexShrink: 0 }}>PHASE</span>
+                                        {([
+                                            { id: 'all', label: 'Toutes', color: '#6366f1', dot: false },
+                                            { id: 'none', label: 'Sans phase', color: 'rgba(255,255,255,0.5)', dot: false },
+                                            ...roadmapPhases.map(ph => ({ id: ph.id, label: ph.title, color: ph.color, dot: true }))
+                                        ] as { id: string; label: string; color: string; dot: boolean }[]).map(chip => {
+                                            const isAct = milestonePhaseFilter === chip.id;
+                                            return (
+                                                <button key={chip.id} onClick={() => setMilestonePhaseFilter(chip.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 11px', borderRadius: 30, fontSize: '0.68rem', fontWeight: isAct ? 700 : 500, border: isAct ? `1px solid ${chip.color}60` : '1px solid rgba(255,255,255,0.07)', background: isAct ? `${chip.color}18` : 'transparent', color: isAct ? chip.color : 'rgba(255,255,255,0.32)', cursor: 'pointer', transition: 'all 0.18s', boxShadow: isAct ? `0 0 10px ${chip.color}18` : 'none', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+                                                    {chip.dot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: chip.color, boxShadow: isAct ? `0 0 5px ${chip.color}` : 'none', flexShrink: 0 }} />}
+                                                    {chip.label}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                                 {milestones.length === 0 && !generatingAI && !suggestingAI ? (
@@ -3279,8 +3290,9 @@ export default function ProjectDetail() {
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>{m.text}</span>
                                                             {mPhase && (
-                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: mPhase.color + '18', border: `1px solid ${mPhase.color}35`, color: mPhase.color }}>
-                                                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: mPhase.color, display: 'inline-block', flexShrink: 0 }} />{mPhase.title}
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.67rem', fontWeight: 700, padding: '2px 7px 2px 8px', borderRadius: 20, background: mPhase.color + '14', border: `1px solid ${mPhase.color}28`, color: mPhase.color, maxWidth: 140, letterSpacing: '0.01em', boxShadow: `0 0 8px ${mPhase.color}10`, overflow: 'hidden' }}>
+                                                                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: mPhase.color, flexShrink: 0 }} />
+                                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mPhase.title}</span>
                                                                 </span>
                                                             )}
                                                             {m.estimated_hours && m.estimated_hours > 0 && (
@@ -3296,13 +3308,16 @@ export default function ProjectDetail() {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                                                         {/* Quick phase assign */}
                                                         {roadmapPhases.length > 0 && !m.phase_id && !m.completed && (
-                                                            <select defaultValue="" onChange={async e => { if (!e.target.value) return; const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: e.target.value }); }} style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, color: 'rgba(255,255,255,0.3)', padding: '2px 4px', cursor: 'pointer', maxWidth: 90 }} title="Lier à une phase">
-                                                                <option value="">Phase…</option>
-                                                                {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
-                                                            </select>
+                                                            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                                                                <select defaultValue="" onChange={async e => { if (!e.target.value) return; const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: e.target.value }); }} style={{ appearance: 'none', WebkitAppearance: 'none', fontSize: '0.63rem', fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 20, color: 'rgba(255,255,255,0.28)', padding: '2px 18px 2px 9px', cursor: 'pointer', letterSpacing: '0.02em', outline: 'none' }} title="Lier à une phase">
+                                                                    <option value="">+ phase</option>
+                                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                                </select>
+                                                                <span style={{ position: 'absolute', right: 5, pointerEvents: 'none', color: 'rgba(255,255,255,0.18)', fontSize: '0.48rem', lineHeight: 1 }}>▾</span>
+                                                            </div>
                                                         )}
                                                         {mPhase && (
-                                                            <button title="Retirer de la phase" onClick={async () => { const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: '' }); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: '0.7rem', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }} onMouseEnter={e => (e.currentTarget.style.color = '#f87171')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.2)')}>⊗</button>
+                                                            <button title="Retirer de la phase" onClick={async () => { const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: '' }); }} style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.14)', color: 'rgba(248,113,113,0.38)', cursor: 'pointer', fontSize: '0.65rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.18)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.38)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.07)'; e.currentTarget.style.color = 'rgba(248,113,113,0.38)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.14)'; }}>×</button>
                                                         )}
                                                         <button type="button" className="btn btn-sm btn-ghost text-secondary" style={{ padding: '2px 6px', opacity: 0.4, fontSize: '0.8rem' }}
                                                             onClick={async () => { const { deleteDoc } = await import('firebase/firestore'); await deleteDoc(doc(db, 'projects', id as string, 'milestones', m.id)); }}>

@@ -2469,11 +2469,16 @@ export default function ObjectiveDetail() {
                                         />
                                         {roadmapPhases.length > 0 && (
                                             <div>
-                                                <label className="text-xs text-secondary" style={{ marginBottom: 4, display: 'block' }}>Phase liée <span className="opacity-40">(optionnel)</span></label>
-                                                <select className="input" style={{ fontSize: '0.85rem', padding: '6px 10px' }} value={newGroupStep.phase_id} onChange={e => setNewGroupStep(s => ({ ...s, phase_id: e.target.value }))}>
-                                                    <option value="">— Aucune phase —</option>
-                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id} style={{ background: '#1a1a2e' }}>{ph.title}</option>)}
-                                                </select>
+                                                <label style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', display: 'block', marginBottom: 8 }}>Phase associée <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.16)', fontSize: '0.65rem' }}>(optionnel)</span></label>
+                                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                                    <button type="button" onClick={() => setNewGroupStep(s => ({ ...s, phase_id: '' }))} style={{ padding: '4px 12px', borderRadius: 30, fontSize: '0.68rem', fontWeight: 600, border: !newGroupStep.phase_id ? '1px solid rgba(255,255,255,0.22)' : '1px solid rgba(255,255,255,0.07)', background: !newGroupStep.phase_id ? 'rgba(255,255,255,0.07)' : 'transparent', color: !newGroupStep.phase_id ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.26)', cursor: 'pointer', transition: 'all 0.15s' }}>Aucune</button>
+                                                    {roadmapPhases.map(ph => (
+                                                        <button type="button" key={ph.id} onClick={() => setNewGroupStep(s => ({ ...s, phase_id: ph.id }))} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 30, fontSize: '0.68rem', fontWeight: 600, border: newGroupStep.phase_id === ph.id ? `1px solid ${ph.color}55` : '1px solid rgba(255,255,255,0.07)', background: newGroupStep.phase_id === ph.id ? ph.color + '16' : 'transparent', color: newGroupStep.phase_id === ph.id ? ph.color : 'rgba(255,255,255,0.3)', cursor: 'pointer', transition: 'all 0.15s', boxShadow: newGroupStep.phase_id === ph.id ? `0 0 8px ${ph.color}18` : 'none' }}>
+                                                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: ph.color, flexShrink: 0 }} />
+                                                            {ph.title}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                         <div className="flex gap-2">
@@ -2507,10 +2512,21 @@ export default function ObjectiveDetail() {
                                     <>
                                         {/* Phase filter chips */}
                                         {roadmapPhases.length > 0 && (
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                                                {[{ id: 'all', label: 'Toutes', color: 'rgba(255,255,255,0.2)' }, { id: 'none', label: 'Sans phase', color: 'rgba(255,255,255,0.12)' }, ...roadmapPhases.map(ph => ({ id: ph.id, label: ph.title, color: ph.color }))].map(chip => (
-                                                    <button key={chip.id} onClick={() => setMilestonePhaseFilter(chip.id)} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 600, border: `1px solid ${chip.color}55`, background: milestonePhaseFilter === chip.id ? `${chip.color}33` : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === chip.id ? '#fff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{chip.label}</button>
-                                                ))}
+                                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center', padding: '7px 12px', background: 'rgba(255,255,255,0.018)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <span style={{ fontSize: '0.57rem', fontWeight: 800, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.16)', textTransform: 'uppercase', marginRight: 4, alignSelf: 'center', flexShrink: 0 }}>PHASE</span>
+                                                {([
+                                                    { id: 'all', label: 'Toutes', color: '#6366f1', dot: false },
+                                                    { id: 'none', label: 'Sans phase', color: 'rgba(255,255,255,0.5)', dot: false },
+                                                    ...roadmapPhases.map(ph => ({ id: ph.id, label: ph.title, color: ph.color, dot: true }))
+                                                ] as { id: string; label: string; color: string; dot: boolean }[]).map(chip => {
+                                                    const isAct = milestonePhaseFilter === chip.id;
+                                                    return (
+                                                        <button key={chip.id} onClick={() => setMilestonePhaseFilter(chip.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 11px', borderRadius: 30, fontSize: '0.68rem', fontWeight: isAct ? 700 : 500, border: isAct ? `1px solid ${chip.color}60` : '1px solid rgba(255,255,255,0.07)', background: isAct ? `${chip.color}18` : 'transparent', color: isAct ? chip.color : 'rgba(255,255,255,0.32)', cursor: 'pointer', transition: 'all 0.18s', boxShadow: isAct ? `0 0 10px ${chip.color}18` : 'none', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+                                                            {chip.dot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: chip.color, boxShadow: isAct ? `0 0 5px ${chip.color}` : 'none', flexShrink: 0 }} />}
+                                                            {chip.label}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                         {/* Progress bar */}
@@ -2544,14 +2560,17 @@ export default function ObjectiveDetail() {
                                                                     ⏱ {fmtHours(m.estimated_hours)}
                                                                 </span>
                                                             )}
-                                                            {m.phase_id && (() => { const ph = roadmapPhases.find(p => p.id === m.phase_id); return ph ? <span style={{ fontSize: '0.65rem', padding: '1px 8px', borderRadius: 10, background: `${ph.color}22`, color: ph.color, border: `1px solid ${ph.color}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{ph.title}</span> : null; })()}
+                                                            {m.phase_id && (() => { const ph = roadmapPhases.find(p => p.id === m.phase_id); return ph ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.67rem', fontWeight: 700, padding: '2px 7px 2px 8px', borderRadius: 20, background: ph.color + '14', border: `1px solid ${ph.color}28`, color: ph.color, maxWidth: 140, letterSpacing: '0.01em', boxShadow: `0 0 8px ${ph.color}10`, overflow: 'hidden' }}><span style={{ width: 4, height: 4, borderRadius: '50%', background: ph.color, flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ph.title}</span></span> : null; })()}
                                                             {!m.phase_id && roadmapPhases.length > 0 && (
-                                                                <select style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} defaultValue="" onChange={async e => { if (e.target.value) await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: e.target.value }); }}>
-                                                                    <option value="" disabled>+ phase</option>
-                                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
-                                                                </select>
+                                                                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                                                                    <select style={{ appearance: 'none', WebkitAppearance: 'none', fontSize: '0.63rem', fontWeight: 600, background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 20, color: 'rgba(255,255,255,0.28)', padding: '2px 18px 2px 9px', cursor: 'pointer', letterSpacing: '0.02em', outline: 'none' }} defaultValue="" onChange={async e => { if (e.target.value) await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: e.target.value }); }}>
+                                                                        <option value="" disabled>+ phase</option>
+                                                                        {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                                    </select>
+                                                                    <span style={{ position: 'absolute', right: 5, pointerEvents: 'none', color: 'rgba(255,255,255,0.18)', fontSize: '0.48rem', lineHeight: 1 }}>▾</span>
+                                                                </div>
                                                             )}
-                                                            {m.phase_id && <button onClick={async () => await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: '' })} style={{ fontSize: '0.6rem', padding: '1px 5px', borderRadius: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }} title="Délier la phase">⊗</button>}
+                                                            {m.phase_id && <button onClick={async () => await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: '' })} style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.14)', color: 'rgba(248,113,113,0.38)', cursor: 'pointer', fontSize: '0.65rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.18)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.38)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.07)'; e.currentTarget.style.color = 'rgba(248,113,113,0.38)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.14)'; }} title="Délier la phase">×</button>}
                                                         </div>
                                                         {m.description && (
                                                             <span className={`text-sm mt-1 mb-1 ${m.completed ? 'opacity-50' : 'opacity-80'}`} style={{ lineHeight: '1.4' }}>
