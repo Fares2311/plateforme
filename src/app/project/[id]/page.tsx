@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { db, storage } from '@/lib/firebase';
@@ -29,6 +30,193 @@ const fmtDate = (ts: any): string => {
     if (diff < 172800000) return 'Hier';
     return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
 };
+
+
+// ── Sprint Date-Only Range Picker ─────────────────────────────────────────────
+const MONTHS_SP = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
+const MONTHS_SP_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const DAYS_SP = ['L','M','M','J','V','S','D'];
+
+function spFmtDate(d: string) {
+    if (!d) return '';
+    const [y, m, day] = d.split('-').map(Number);
+    return `${String(day).padStart(2,'0')} ${MONTHS_SP[m-1]} ${y}`;
+}
+function spAddDays(d: string, n: number) {
+    const dt = new Date(d + 'T12:00:00');
+    dt.setDate(dt.getDate() + n);
+    return dt.toISOString().slice(0, 10);
+}
+function spToday() { return new Date().toISOString().slice(0, 10); }
+
+function SprintDateRangePicker({ startDate, endDate, onStartChange, onEndChange }: {
+    startDate: string; endDate: string;
+    onStartChange: (d: string) => void; onEndChange: (d: string) => void;
+}) {
+
+    const [open, setOpen] = useState(false);
+    const [picking, setPicking] = useState<'start'|'end'>('start');
+    const [hover, setHover] = useState<string|null>(null);
+    const today = spToday();
+    const [viewY, setViewY] = useState(() => { const d = startDate || today; return parseInt(d.slice(0,4)); });
+    const [viewM, setViewM] = useState(() => { const d = startDate || today; return parseInt(d.slice(5,7)) - 1; });
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+
+    useEffect(() => {
+        if (open && triggerRef.current) {
+            const r = triggerRef.current.getBoundingClientRect();
+            setPos({ top: r.bottom + 6 + window.scrollY, left: Math.min(r.left + window.scrollX, window.innerWidth - 340) });
+        }
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('keydown', fn);
+        return () => document.removeEventListener('keydown', fn);
+    }, [open]);
+
+    const daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
+    const firstDay = (() => { const d = new Date(viewY, viewM, 1).getDay(); return d === 0 ? 6 : d - 1; })();
+
+    const cellDate = (d: number) => `${viewY}-${String(viewM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    const effectiveEnd = hover && picking === 'end' && startDate ? hover : endDate;
+
+    const isStart = (d: number) => cellDate(d) === startDate;
+    const isEnd = (d: number) => cellDate(d) === effectiveEnd;
+    const inRange = (d: number) => {
+        const cd = cellDate(d);
+        if (!startDate) return false;
+        const s = startDate, e = effectiveEnd;
+        if (!e) return false;
+        return cd > s && cd < e;
+    };
+    const isToday = (d: number) => cellDate(d) === today;
+
+    const handleDayClick = (d: number) => {
+        const cd = cellDate(d);
+        if (picking === 'start') {
+            onStartChange(cd);
+            if (endDate && cd >= endDate) onEndChange('');
+            setPicking('end');
+        } else {
+            if (cd < startDate) { onStartChange(cd); onEndChange(''); setPicking('end'); }
+            else { onEndChange(cd); setOpen(false); setPicking('start'); }
+        }
+    };
+
+    const applyPreset = (days: number) => {
+        const s = today; const e = spAddDays(s, days - 1);
+        onStartChange(s); onEndChange(e);
+        setViewY(parseInt(s.slice(0,4))); setViewM(parseInt(s.slice(5,7))-1);
+        setPicking('start'); setOpen(false);
+    };
+
+    const prevMonth = () => { if (viewM === 0) { setViewM(11); setViewY(y => y-1); } else setViewM(m => m-1); };
+    const nextMonth = () => { if (viewM === 11) { setViewM(0); setViewY(y => y+1); } else setViewM(m => m+1); };
+
+    const displayLabel = startDate && endDate
+        ? `${spFmtDate(startDate)}  →  ${spFmtDate(endDate)}`
+        : startDate ? `${spFmtDate(startDate)}  →  …` : 'Choisir les dates du sprint';
+
+    const durationDays = startDate && endDate
+        ? Math.round((new Date(endDate+'T12:00:00').getTime() - new Date(startDate+'T12:00:00').getTime()) / 86400000) + 1
+        : null;
+
+    return (
+        <div style={{ position: 'relative', width: '100%' }}>
+            <button ref={triggerRef} type="button" onClick={() => { setOpen(v => !v); setPicking('start'); }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, border: `1px solid ${open ? 'rgba(99,102,241,0.55)' : 'rgba(255,255,255,0.1)'}`, background: open ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)', color: startDate ? '#fff' : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', transition: 'all 0.15s', textAlign: 'left' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={open ? '#818cf8' : 'rgba(255,255,255,0.4)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span style={{ flex: 1 }}>{displayLabel}</span>
+                {durationDays && <span style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 700, background: 'rgba(99,102,241,0.12)', padding: '2px 8px', borderRadius: 20, border: '1px solid rgba(99,102,241,0.2)', flexShrink: 0 }}>{durationDays}j</span>}
+            </button>
+
+            {open && typeof document !== 'undefined' && createPortal(
+                <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
+                    <div style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 99999, width: 320, background: '#0f0f18', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 16, boxShadow: '0 24px 72px rgba(0,0,0,0.85)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div style={{ padding: '12px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: picking === 'start' ? '#818cf8' : '#10b981', fontWeight: 700, marginBottom: 4 }}>
+                                {picking === 'start' ? '① Choisir la date de début' : '② Choisir la date de fin'}
+                            </div>
+                            {/* Quick presets */}
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                {[{label:'1 sem', days:7},{label:'2 sem', days:14},{label:'3 sem', days:21},{label:'4 sem', days:28}].map(p => (
+                                    <button key={p.days} type="button" onClick={() => applyPreset(p.days)}
+                                        style={{ padding: '3px 9px', borderRadius: 20, border: '1px solid rgba(99,102,241,0.25)', background: 'rgba(99,102,241,0.08)', color: '#818cf8', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.2)'; e.currentTarget.style.borderColor='rgba(99,102,241,0.5)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(99,102,241,0.08)'; e.currentTarget.style.borderColor='rgba(99,102,241,0.25)'; }}>
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        {/* Calendar */}
+                        <div style={{ padding: '10px 14px 14px' }}>
+                            {/* Month nav */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <button type="button" onClick={prevMonth} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                                </button>
+                                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fff' }}>{MONTHS_SP_FULL[viewM]} {viewY}</span>
+                                <button type="button" onClick={nextMonth} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                            </div>
+                            {/* Day headers */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 4 }}>
+                                {DAYS_SP.map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.25)', padding: '2px 0' }}>{d}</div>)}
+                            </div>
+                            {/* Day cells */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+                                {Array.from({length: firstDay}).map((_,i) => <div key={'e'+i} />)}
+                                {Array.from({length: daysInMonth}).map((_,i) => {
+                                    const day = i+1;
+                                    const cd = cellDate(day);
+                                    const start = isStart(day); const end = isEnd(day);
+                                    const range = inRange(day); const tod = isToday(day);
+                                    const isSunday = (firstDay + i) % 7 === 6;
+                                    const isMonday = (firstDay + i) % 7 === 0;
+                                    return (
+                                        <button key={day} type="button"
+                                            onClick={() => handleDayClick(day)}
+                                            onMouseEnter={() => setHover(cd)}
+                                            onMouseLeave={() => setHover(null)}
+                                            style={{
+                                                height: 34, border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: start || end ? 700 : tod ? 600 : 400, fontFamily: 'inherit', position: 'relative', transition: 'all 0.1s',
+                                                background: start || end ? 'transparent' : range ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                                color: start || end ? '#fff' : range ? 'rgba(255,255,255,0.85)' : tod ? '#818cf8' : 'rgba(255,255,255,0.65)',
+                                                borderRadius: start ? '8px 0 0 8px' : end ? '0 8px 8px 0' : range ? 0 : 8,
+                                                outline: 'none',
+                                            }}>
+                                            {(start || end) && (
+                                                <span style={{ position: 'absolute', inset: '2px', borderRadius: 7, background: start ? 'linear-gradient(135deg,#6366f1,#818cf8)' : 'linear-gradient(135deg,#4f46e5,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(99,102,241,0.5)' }}>{day}</span>
+                                            )}
+                                            {!start && !end && day}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        {/* Footer: selected summary */}
+                        {(startDate || endDate) && (
+                            <div style={{ padding: '8px 14px 12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem' }}>
+                                <span style={{ color: '#818cf8', fontWeight: 600 }}>{startDate ? spFmtDate(startDate) : '—'}</span>
+                                <span style={{ color: 'rgba(255,255,255,0.2)' }}>→</span>
+                                <span style={{ color: '#10b981', fontWeight: 600 }}>{endDate ? spFmtDate(endDate) : '…'}</span>
+                                {durationDays && <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.3)' }}>{durationDays} jour{durationDays > 1 ? 's' : ''}</span>}
+                            </div>
+                        )}
+                    </div>
+                </>, document.body
+            )}
+        </div>
+    );
+}
 
 export default function ProjectDetail() {
     const { id } = useParams();
@@ -71,7 +259,7 @@ export default function ProjectDetail() {
     ];
     const HOUR_PRESETS = [10, 20, 50, 100, 200];
 
-    const [milestones, setMilestones] = useState<{ id: string, text: string, description?: string, estimated_hours?: number, completed: boolean }[]>([]);
+    const [milestones, setMilestones] = useState<{ id: string, text: string, description?: string, estimated_hours?: number, completed: boolean, phase_id?: string }[]>([]);
     const [generatingAI, setGeneratingAI] = useState(false);
 
     const [resources, setResources] = useState<{ id: string, text: string }[]>([]);
@@ -103,7 +291,8 @@ export default function ProjectDetail() {
     const [newPersonalStep, setNewPersonalStep] = useState('');
     const [milestoneSubTab, setMilestoneSubTab] = useState<'group' | 'personal'>('group');
     const [showGroupStepForm, setShowGroupStepForm] = useState(false);
-    const [newGroupStep, setNewGroupStep] = useState({ text: '', description: '' });
+    const [newGroupStep, setNewGroupStep] = useState({ text: '', description: '', phase_id: '' });
+    const [milestonePhaseFilter, setMilestonePhaseFilter] = useState<string>('all');
     const [suggestingAI, setSuggestingAI] = useState(false);
 
     // Agenda AI state
@@ -170,6 +359,32 @@ export default function ProjectDetail() {
     // Live coworking room members
     const [liveRoomCount, setLiveRoomCount] = useState(0);
     const [liveRoomMembers, setLiveRoomMembers] = useState<{ uid: string; full_name: string; avatar_url?: string; avatar_style?: string }[]>([]);
+    // ── Sprint System ──────────────────────────────────────────────────────────
+    type SprintTask = { id: string; title: string; completed: boolean; priority: 'high' | 'medium' | 'low'; story_points: number; assignee_id?: string; assignee_name?: string; created_at: any; created_by: string; created_by_name: string };
+    type Sprint = { id: string; title: string; goal: string; start_date: string; end_date: string; status: 'planning' | 'active' | 'completed'; created_at: any; created_by: string; velocity?: number; retro?: { went_well: string; improvements: string; next_actions: string } };
+    const [sprints, setSprints] = useState<Sprint[]>([]);
+    const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
+    const [sprintTasks, setSprintTasks] = useState<Record<string, SprintTask[]>>({});
+    const [sprintTasksLoaded, setSprintTasksLoaded] = useState<Set<string>>(new Set());
+    const [showSprintForm, setShowSprintForm] = useState(false);
+    const [newSprintForm, setNewSprintForm] = useState({ title: '', goal: '', start_date: '', end_date: '' });
+    const [creatingSprint, setCreatingSprint] = useState(false);
+    const [showTaskForm, setShowTaskForm] = useState(false);
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskPriority, setNewTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
+    const [newTaskPoints, setNewTaskPoints] = useState(2);
+    const [addingTask, setAddingTask] = useState(false);
+    const [showRetroForm, setShowRetroForm] = useState(false);
+    const [retroForm, setRetroForm] = useState({ went_well: '', improvements: '', next_actions: '' });
+    const [savingRetro, setSavingRetro] = useState(false);
+    const [closingSprint, setClosingSprint] = useState(false);
+
+    const [showEditSprint, setShowEditSprint] = useState(false);
+    const [editSprintData, setEditSprintData] = useState({ title: '', goal: '', start_date: '', end_date: '', status: 'active' as 'planning' | 'active' | 'completed' });
+    const [savingEditSprint, setSavingEditSprint] = useState(false);
+    const [sprintDeleteConfirm, setSprintDeleteConfirm] = useState<{ sprintId: string; title: string } | null>(null);
+
+
 
     useEffect(() => {
         if (!user || !id) return;
@@ -372,6 +587,14 @@ export default function ProjectDetail() {
             }
         });
 
+
+        // Realtime Sprints Subscription
+        const sprintsRef = collection(db, 'projects', id as string, 'sprints');
+        const qSprints = query(sprintsRef, orderBy('created_at', 'desc'));
+        const unsubSprints = onSnapshot(qSprints, (snap) => {
+            setSprints(snap.docs.map(d => ({ id: d.id, ...d.data() } as Sprint)));
+        });
+
         return () => {
             unsubscribe();
             unsubscribeAi();
@@ -384,8 +607,46 @@ export default function ProjectDetail() {
             unsubscribePresence();
             unsubLiveSession();
             unsubActivity();
+            unsubSprints();
         };
     }, [id, user, router]);
+
+
+    // Auto-select active (or first) sprint when sprints load
+    useEffect(() => {
+        if (sprints.length === 0 || selectedSprintId) return;
+        const active = sprints.find(s => s.status === 'active') || sprints[0];
+        if (active) setSelectedSprintId(active.id);
+    }, [sprints]);
+
+    // Dynamic sprint tasks subscription
+    useEffect(() => {
+        if (!id || !selectedSprintId) return;
+        const tasksRef = collection(db, 'projects', id as string, 'sprints', selectedSprintId, 'tasks');
+        const qTasks = query(tasksRef, orderBy('created_at', 'asc'));
+        const unsub = onSnapshot(qTasks, (snap) => {
+            const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() } as SprintTask));
+            setSprintTasks(prev => ({ ...prev, [selectedSprintId]: tasks }));
+            setSprintTasksLoaded(prev => new Set(prev).add(selectedSprintId));
+        });
+        return () => unsub();
+    }, [id, selectedSprintId]);
+
+    // Recalculate velocity for completed sprints (fixes sprints closed before the getDocs fix)
+    useEffect(() => {
+        if (!id || sprints.length === 0) return;
+        const completed = sprints.filter(s => s.status === 'completed');
+        if (completed.length === 0) return;
+        (async () => {
+            for (const sprint of completed) {
+                const snap = await getDocs(collection(db, 'projects', id as string, 'sprints', sprint.id, 'tasks'));
+                const real = snap.docs.map(d => d.data()).filter(t => t.completed).reduce((a: number, t: any) => a + (t.story_points || 1), 0);
+                if (real !== (sprint.velocity ?? -1)) {
+                    await updateDoc(doc(db, 'projects', id as string, 'sprints', sprint.id), { velocity: real });
+                }
+            }
+        })();
+    }, [sprints.map(s => s.id).join(',')]);
 
     // Sync heartbeat cleanup (navbar indicator persistence is handled via global state)
     useEffect(() => {
@@ -700,6 +961,7 @@ export default function ProjectDetail() {
         await addDoc(collection(db, 'projects', id as string, 'milestones'), {
             text: newGroupStep.text.trim(),
             description: newGroupStep.description.trim(),
+            phase_id: newGroupStep.phase_id || '',
             completed: false,
             created_at: serverTimestamp()
         });
@@ -715,7 +977,7 @@ export default function ProjectDetail() {
             });
         }
 
-        setNewGroupStep({ text: '', description: '' });
+        setNewGroupStep({ text: '', description: '', phase_id: '' });
         setShowGroupStepForm(false);
     };
 
@@ -1467,6 +1729,11 @@ export default function ProjectDetail() {
     const [rmAiGenerating, setRmAiGenerating] = useState(false);
     const [rmAiPreview, setRmAiPreview] = useState<{phases:any[];milestones:any[]}|null>(null);
     const [rmAiApplying, setRmAiApplying] = useState(false);
+    const [rmMsGenOpen, setRmMsGenOpen] = useState(false);
+    const [rmMsGenPrompt, setRmMsGenPrompt] = useState('');
+    const [rmMsGenerating, setRmMsGenerating] = useState(false);
+    const [rmMsPreview, setRmMsPreview] = useState<{title:string;date:string;type:string;phase_id:string;rationale:string}[]|null>(null);
+    const [rmMsApplying, setRmMsApplying] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -1559,6 +1826,44 @@ export default function ProjectDetail() {
             setRmAiOpen(false); setRmAiPreview(null); setRmAiPrompt('');
         } catch (err) { console.error(err); }
         setRmAiApplying(false);
+    };
+
+    const handleGenerateMilestones = async () => {
+        if (!roadmapPhases.length || !project) return;
+        setRmMsGenerating(true); setRmMsPreview(null);
+        try {
+            const res = await fetch('/api/generate-milestones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                type: 'project', title: project.title, description: project.description || '',
+                category: project.category,
+                phases: roadmapPhases.map(p => ({ id: p.id, title: p.title, start_date: p.start_date, end_date: p.end_date, description: p.description || '' })),
+                existingMilestones: roadmapMilestones.map(m => ({ title: m.title, date: m.date })),
+                steps: milestones.map(m => ({ text: m.text, completed: m.completed })),
+                decisions: [],
+                userPrompt: rmMsGenPrompt,
+                today: new Date().toISOString().split('T')[0],
+            }) });
+            if (!res.ok) throw new Error('API error');
+            const data = await res.json();
+            setRmMsPreview(data.milestones || []);
+        } catch (err) { console.error(err); }
+        setRmMsGenerating(false);
+    };
+
+    const handleApplyMilestones = async () => {
+        if (!rmMsPreview?.length || !user) return;
+        setRmMsApplying(true);
+        try {
+            for (const ms of rmMsPreview) {
+                await addDoc(collection(db, 'projects', id as string, 'roadmap_milestones'), {
+                    title: ms.title, date: ms.date, type: ms.type || 'milestone',
+                    phase_id: ms.phase_id || '',
+                    creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'IA',
+                    created_at: serverTimestamp(),
+                });
+            }
+            setRmMsGenOpen(false); setRmMsPreview(null); setRmMsGenPrompt('');
+        } catch (err) { console.error(err); }
+        setRmMsApplying(false);
     };
 
     // ─── ANNOUNCEMENT COMMENTS ─────────────────────────────────────────────
@@ -1659,6 +1964,131 @@ export default function ProjectDetail() {
     const globalPerc = Math.min(100, Math.round(
         (milestonesTotal > 0 ? hoursPerc * 0.4 + milestonesPerc * 0.4 + sessionsPerc * 0.2 : hoursPerc * 0.7 + sessionsPerc * 0.3)
     ));
+
+
+    // ── Sprint CRUD Handlers ───────────────────────────────────────────────────
+    const isAdminOrCreator = project && user && (user.uid === project.creator_id || memberships.find((m: any) => m.user_id === user?.uid)?.role === 'admin');
+
+    const handleCreateSprint = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !newSprintForm.title || !newSprintForm.start_date || !newSprintForm.end_date) return;
+        setCreatingSprint(true);
+        try {
+            const mem = memberships.find((m: any) => m.user_id === user.uid);
+            const hasActive = sprints.some(s => s.status === 'active');
+            const docRef = await addDoc(collection(db, 'projects', id as string, 'sprints'), {
+                title: newSprintForm.title,
+                goal: newSprintForm.goal,
+                start_date: newSprintForm.start_date,
+                end_date: newSprintForm.end_date,
+                status: hasActive ? 'planning' : 'active',
+                created_at: serverTimestamp(),
+                created_by: user.uid,
+                created_by_name: mem?.full_name || user.email?.split('@')[0] || 'Membre',
+            });
+            setSelectedSprintId(docRef.id);
+            setShowSprintForm(false);
+            setNewSprintForm({ title: '', goal: '', start_date: '', end_date: '' });
+            await logActivity('sprint_created', newSprintForm.title);
+        } catch (err) { console.error(err); }
+        finally { setCreatingSprint(false); }
+    };
+
+    const handleAddSprintTask = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !newTaskTitle.trim() || !selectedSprintId) return;
+        setAddingTask(true);
+        try {
+            const mem = memberships.find((m: any) => m.user_id === user.uid);
+            await addDoc(collection(db, 'projects', id as string, 'sprints', selectedSprintId, 'tasks'), {
+                title: newTaskTitle.trim(),
+                completed: false,
+                priority: newTaskPriority,
+                story_points: newTaskPoints,
+                created_at: serverTimestamp(),
+                created_by: user.uid,
+                created_by_name: mem?.full_name || user.email?.split('@')[0] || 'Membre',
+            });
+            setNewTaskTitle('');
+            setNewTaskPriority('medium');
+            setNewTaskPoints(2);
+            setShowTaskForm(false);
+        } catch (err) { console.error(err); }
+        finally { setAddingTask(false); }
+    };
+
+    const handleToggleSprintTask = async (taskId: string, completed: boolean) => {
+        if (!selectedSprintId) return;
+        await updateDoc(doc(db, 'projects', id as string, 'sprints', selectedSprintId, 'tasks', taskId), { completed });
+    };
+
+    const handleDeleteSprintTask = async (taskId: string) => {
+        if (!selectedSprintId) return;
+        await deleteDoc(doc(db, 'projects', id as string, 'sprints', selectedSprintId, 'tasks', taskId));
+    };
+
+    const handleCloseSprint = async () => {
+        if (!selectedSprintId) return;
+        setClosingSprint(true);
+        try {
+            // Fetch tasks directly from Firestore to avoid stale in-memory state
+            const tasksSnap = await getDocs(collection(db, 'projects', id as string, 'sprints', selectedSprintId, 'tasks'));
+            const allTasks = tasksSnap.docs.map(d => d.data());
+            const velocity = allTasks.filter(t => t.completed).reduce((acc: number, t: any) => acc + (t.story_points || 1), 0);
+            await updateDoc(doc(db, 'projects', id as string, 'sprints', selectedSprintId), {
+                status: 'completed',
+                velocity,
+            });
+            await logActivity('sprint_closed', sprints.find(s => s.id === selectedSprintId)?.title || '');
+            setShowRetroForm(true);
+        } catch (err) { console.error(err); }
+        finally { setClosingSprint(false); }
+    };
+
+    const handleSaveRetro = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedSprintId) return;
+        setSavingRetro(true);
+        try {
+            await updateDoc(doc(db, 'projects', id as string, 'sprints', selectedSprintId), {
+                retro: retroForm,
+            });
+            setShowRetroForm(false);
+            setRetroForm({ went_well: '', improvements: '', next_actions: '' });
+        } catch (err) { console.error(err); }
+        finally { setSavingRetro(false); }
+    };
+
+    const handleActivateSprint = async (sprintId: string) => {
+        // Deactivate currently active sprint first
+        const activeS = sprints.find(s => s.status === 'active');
+        if (activeS) await updateDoc(doc(db, 'projects', id as string, 'sprints', activeS.id), { status: 'planning' });
+        await updateDoc(doc(db, 'projects', id as string, 'sprints', sprintId), { status: 'active' });
+    };
+
+
+    const handleUpdateSprint = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedSprintId) return;
+        setSavingEditSprint(true);
+        try {
+            await updateDoc(doc(db, 'projects', id as string, 'sprints', selectedSprintId), {
+                title: editSprintData.title,
+                goal: editSprintData.goal,
+                start_date: editSprintData.start_date,
+                end_date: editSprintData.end_date,
+                status: editSprintData.status,
+            });
+            setShowEditSprint(false);
+        } catch (err) { console.error(err); }
+        finally { setSavingEditSprint(false); }
+    };
+
+    const handleDeleteSprint = async (sprintId: string) => {
+        await deleteDoc(doc(db, 'projects', id as string, 'sprints', sprintId));
+        if (selectedSprintId === sprintId) setSelectedSprintId(null);
+    };
+
 
     return (
         <div style={{ paddingLeft: '228px', paddingRight: '3rem', paddingTop: '2rem', paddingBottom: '3rem', minHeight: '100vh' }}>
@@ -1904,6 +2334,7 @@ export default function ProjectDetail() {
                 </div>
             </div>
 
+
             {/* Lateral Nav — fixed in left gutter, outside the 1400px container */}
             <nav style={{
                 position: 'fixed',
@@ -1932,6 +2363,7 @@ export default function ProjectDetail() {
                     { id: 'ai-chat',    Icon: Bot,             label: t('room_tab_ai') },
                     { id: 'agenda',     Icon: Calendar,        label: t('room_tab_agenda') },
                     { id: 'milestones', Icon: CheckSquare,     label: t('room_tab_milestones') },
+                    { id: 'taches',     Icon: Flag,            label: 'Tâches' },
                     { id: 'polls',      Icon: BarChart2,       label: t('room_tab_polls') },
                     { id: 'resources',  Icon: LinkIcon,        label: t('room_tab_resources') },
                     { id: 'notes',      Icon: StickyNote,      label: 'Notes' },
@@ -1940,6 +2372,7 @@ export default function ProjectDetail() {
                     { id: 'qa',         Icon: HelpCircle,      label: 'Q&A' },
                     { id: 'focus',      Icon: Crosshair,       label: 'Focus' },
                     { id: 'roadmap',    Icon: Map,             label: 'Roadmap' },
+                    { id: 'sprints',    Icon: Zap,             label: 'Sprints' },
                     { id: 'activity',   Icon: TrendingUp,      label: 'Activité' },
                 ] as const).map(({ id, Icon, label }) => {
                     const active = activeTab === id;
@@ -2722,16 +3155,227 @@ export default function ProjectDetail() {
                     </motion.div>
                 )}
 
-                {/* TAB: PROJECT BOARD */}
+                {/* TAB: MILESTONES (étapes) */}
                 {activeTab === 'milestones' && (
-                    <motion.div
-                        key="milestones"
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -15 }}
-                        transition={{ duration: 0.25, ease: "easeInOut" }}
-                        className="tab-pane active h-full"
-                        style={{ minHeight: '600px' }}>
+                    <motion.div key="milestones" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="tab-pane active fade-enter">
+                        {/* Sub-tab switcher */}
+                        <div className="flex items-center gap-3 mb-6" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+                            <button className={`btn btn-sm ${milestoneSubTab === 'group' ? 'btn-primary shadow-glow' : 'btn-ghost text-secondary'}`} onClick={() => setMilestoneSubTab('group')}>
+                                🌐 Groupe
+                            </button>
+                            <button className={`btn btn-sm ${milestoneSubTab === 'personal' ? 'btn-primary shadow-glow' : 'btn-ghost text-secondary'}`} onClick={() => setMilestoneSubTab('personal')}>
+                                👤 Personnelles
+                                {personalMilestones.filter(m => !m.completed).length > 0 && (
+                                    <span style={{ marginLeft: '6px', background: 'var(--color-secondary)', color: '#fff', borderRadius: '10px', fontSize: '0.7rem', padding: '1px 6px', fontWeight: 700 }}>
+                                        {personalMilestones.filter(m => !m.completed).length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* GROUP sub-tab */}
+                        {milestoneSubTab === 'group' && (
+                            <div className="fade-enter">
+                                <div className="flex justify-between items-start mb-5 flex-wrap gap-3">
+                                    <div>
+                                        <h4 className="flex items-center gap-2 m-0"><CheckSquare className="text-primary" size={18} /> Étapes du groupe</h4>
+                                        <p className="text-sm text-secondary m-0 mt-1">Partagées avec tous les membres du salon</p>
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap">
+                                        <button className="btn btn-sm btn-ghost" style={{ border: '1px solid var(--color-border)', fontSize: '0.82rem' }} onClick={() => setShowGroupStepForm(v => !v)}>
+                                            {showGroupStepForm ? '✕ Annuler' : '+ Ajouter manuellement'}
+                                        </button>
+                                        <button className="btn btn-sm btn-outline" style={{ fontSize: '0.82rem' }} onClick={handleAISuggestMilestones} disabled={suggestingAI}>
+                                            {suggestingAI ? '🤖 Suggestion...' : '🤖 Suggérer des étapes'}
+                                        </button>
+                                        <button className="btn btn-sm" style={{ fontSize: '0.82rem', background: 'rgba(99,102,241,0.12)', color: 'var(--color-primary)', border: '1px solid rgba(99,102,241,0.3)' }}
+                                            onClick={() => { setShowAgendaAI(true); setActiveTab('agenda'); }} disabled={generatingAI}>
+                                            {generatingAI ? '⏳ Génération...' : milestones.length > 0 ? '🔄 Refaire le Smart Agenda' : '✨ Smart Agenda IA'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {showGroupStepForm && (
+                                    <form onSubmit={handleAddGroupMilestone} className="card card-glass mb-4 flex flex-col gap-3 fade-enter" style={{ border: '1px solid var(--color-primary)', background: 'rgba(99,102,241,0.04)', padding: '1rem' }}>
+                                        <h5 className="m-0 text-primary" style={{ fontSize: '0.9rem' }}>Nouvelle étape groupe</h5>
+                                        <input className="input" placeholder="Titre de l'étape*" value={newGroupStep.text} onChange={e => setNewGroupStep(s => ({ ...s, text: e.target.value }))} required />
+                                        <textarea className="input" rows={2} placeholder="Description / conseils (optionnel)" value={newGroupStep.description} onChange={e => setNewGroupStep(s => ({ ...s, description: e.target.value }))} />
+                                        {roadmapPhases.length > 0 && (
+                                            <div>
+                                                <label style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', display: 'block', marginBottom: 6 }}>Phase associée <span style={{ color: 'rgba(255,255,255,0.2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optionnel)</span></label>
+                                                <select className="input" value={newGroupStep.phase_id} onChange={e => setNewGroupStep(s => ({ ...s, phase_id: e.target.value }))} style={{ fontSize: '0.85rem' }}>
+                                                    <option value="">— Aucune phase —</option>
+                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div className="flex gap-2">
+                                            <button type="submit" className="btn btn-sm btn-primary flex-1">✓ Ajouter l'étape</button>
+                                            <button type="button" className="btn btn-sm btn-ghost text-secondary" onClick={() => setShowGroupStepForm(false)}>Annuler</button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {(generatingAI || suggestingAI) && (
+                                    <div className="card card-glass flex items-center gap-3 mb-4 fade-enter" style={{ padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.06)' }}>
+                                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: 'var(--color-primary)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                                        <span className="text-sm text-secondary">{generatingAI ? 'Génération du plan complet...' : 'L\'IA suggère de nouvelles étapes...'}</span>
+                                    </div>
+                                )}
+
+                                {roadmapPhases.length > 0 && milestones.some(m => m.phase_id) && (
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>Filtrer :</span>
+                                        <button onClick={() => setMilestonePhaseFilter('all')} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: milestonePhaseFilter === 'all' ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.08)', background: milestonePhaseFilter === 'all' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === 'all' ? '#a5b4fc' : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s' }}>Toutes</button>
+                                        <button onClick={() => setMilestonePhaseFilter('none')} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: milestonePhaseFilter === 'none' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)', background: milestonePhaseFilter === 'none' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === 'none' ? '#fff' : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s' }}>Sans phase</button>
+                                        {roadmapPhases.map(ph => (
+                                            <button key={ph.id} onClick={() => setMilestonePhaseFilter(ph.id)} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.73rem', fontWeight: 600, border: `1px solid ${milestonePhaseFilter === ph.id ? ph.color + '80' : 'rgba(255,255,255,0.08)'}`, background: milestonePhaseFilter === ph.id ? ph.color + '20' : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === ph.id ? ph.color : 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: ph.color, display: 'inline-block', flexShrink: 0 }} />{ph.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {milestones.length === 0 && !generatingAI && !suggestingAI ? (
+                                    <div className="card card-glass text-center py-16">
+                                        <CheckSquare size={48} className="text-primary mx-auto mb-4 opacity-30" />
+                                        <h3 className="text-secondary mb-3">Aucune étape pour l'instant</h3>
+                                        <p className="mb-6 opacity-60">Définissez les grandes étapes de votre projet pour suivre la progression.</p>
+                                        <div className="flex gap-3 justify-center flex-wrap">
+                                            <button className="btn btn-sm btn-ghost" style={{ border: '1px solid var(--color-border)' }} onClick={() => setShowGroupStepForm(true)}>+ Ajouter manuellement</button>
+                                            <button className="btn btn-sm btn-primary shadow-glow" onClick={() => { setShowAgendaAI(true); setActiveTab('agenda'); }}>✨ Créer un Smart Agenda</button>
+                                        </div>
+                                    </div>
+                                ) : milestones.length > 0 ? (
+                                    <>
+                                        {(() => {
+                                            const done = milestones.filter(m => m.completed).length;
+                                            const total = milestones.length;
+                                            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                                            return (
+                                                <div className="card card-glass mb-4" style={{ padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.05)' }}>
+                                                    <div className="flex justify-between text-sm font-bold mb-2">
+                                                        <span>Progression du groupe</span>
+                                                        <span className="text-primary">{done}/{total} étapes ({pct}%)</span>
+                                                    </div>
+                                                    <div style={{ height: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.07)' }}>
+                                                        <div style={{ height: '100%', width: `${pct}%`, borderRadius: '4px', background: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))', transition: 'width 0.5s ease', boxShadow: '0 0 8px rgba(99,102,241,0.4)' }} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        <div className="milestones-list">
+                                            {milestones.filter(m => {
+                                                if (milestonePhaseFilter === 'all') return true;
+                                                if (milestonePhaseFilter === 'none') return !m.phase_id;
+                                                return m.phase_id === milestonePhaseFilter;
+                                            }).map((m, idx) => {
+                                                const mPhase = roadmapPhases.find(p => p.id === m.phase_id);
+                                                return (
+                                                <div key={m.id} className={`checklist-item ${m.completed ? 'checked' : ''} fade-enter`} style={{ alignItems: 'flex-start', padding: '1rem', animationDelay: `${idx * 0.04}s` }}>
+                                                    <div className="custom-checkbox flex-shrink-0 mt-1" onClick={() => toggleMilestone(m.id, m.completed)}>
+                                                        {m.completed && <CheckSquare size={14} color="#fff" />}
+                                                    </div>
+                                                    <div className="flex-grow flex flex-col">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>{m.text}</span>
+                                                            {mPhase && (
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: mPhase.color + '18', border: `1px solid ${mPhase.color}35`, color: mPhase.color }}>
+                                                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: mPhase.color, display: 'inline-block', flexShrink: 0 }} />{mPhase.title}
+                                                                </span>
+                                                            )}
+                                                            {m.estimated_hours && m.estimated_hours > 0 && (
+                                                                <span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.15)', color: 'var(--color-primary)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                                                    ⏱ {fmtHours(m.estimated_hours)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {m.description && (
+                                                            <span className={`text-sm mt-1 mb-1 ${m.completed ? 'opacity-50' : 'opacity-80'}`} style={{ lineHeight: '1.4' }}>{m.description}</span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                                        {/* Quick phase assign */}
+                                                        {roadmapPhases.length > 0 && !m.phase_id && !m.completed && (
+                                                            <select defaultValue="" onChange={async e => { if (!e.target.value) return; const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: e.target.value }); }} style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, color: 'rgba(255,255,255,0.3)', padding: '2px 4px', cursor: 'pointer', maxWidth: 90 }} title="Lier à une phase">
+                                                                <option value="">Phase…</option>
+                                                                {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                            </select>
+                                                        )}
+                                                        {mPhase && (
+                                                            <button title="Retirer de la phase" onClick={async () => { const { updateDoc } = await import('firebase/firestore'); await updateDoc(doc(db, 'projects', id as string, 'milestones', m.id), { phase_id: '' }); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: '0.7rem', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }} onMouseEnter={e => (e.currentTarget.style.color = '#f87171')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.2)')}>⊗</button>
+                                                        )}
+                                                        <button type="button" className="btn btn-sm btn-ghost text-secondary" style={{ padding: '2px 6px', opacity: 0.4, fontSize: '0.8rem' }}
+                                                            onClick={async () => { const { deleteDoc } = await import('firebase/firestore'); await deleteDoc(doc(db, 'projects', id as string, 'milestones', m.id)); }}>
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                ) : null}
+                            </div>
+                        )}
+
+                        {/* PERSONAL sub-tab */}
+                        {milestoneSubTab === 'personal' && (
+                            <div className="fade-enter">
+                                <div className="mb-4">
+                                    <h4 className="flex items-center gap-2 m-0"><CheckSquare size={18} style={{ color: 'var(--color-secondary)' }} /> Mes étapes personnelles</h4>
+                                    <p className="text-sm text-secondary m-0 mt-1">Visible uniquement par vous — créez votre propre feuille de route</p>
+                                </div>
+                                <form onSubmit={handleAddPersonalMilestone} className="flex gap-2 mb-5">
+                                    <input className="input flex-1" placeholder="Ex: Finaliser le module Auth, Écrire les tests..." value={newPersonalStep} onChange={e => setNewPersonalStep(e.target.value)} required />
+                                    <button type="submit" className="btn btn-sm" style={{ background: 'var(--color-secondary)', color: '#fff', whiteSpace: 'nowrap' }}>+ Ajouter</button>
+                                </form>
+                                {personalMilestones.length === 0 ? (
+                                    <div className="card card-glass text-center py-14">
+                                        <CheckSquare size={40} className="mx-auto mb-3 opacity-30" style={{ color: 'var(--color-secondary)' }} />
+                                        <h3 className="text-secondary mb-2" style={{ fontSize: '1rem' }}>Aucune étape personnelle</h3>
+                                        <p className="text-sm opacity-60">Ajoutez vos propres objectifs pour suivre votre progression individuelle.</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {(() => {
+                                            const done = personalMilestones.filter(m => m.completed).length;
+                                            const total = personalMilestones.length;
+                                            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                                            return (
+                                                <div className="card card-glass mb-4" style={{ padding: '0.75rem 1rem', background: 'rgba(236,72,153,0.05)', border: '1px solid rgba(236,72,153,0.15)' }}>
+                                                    <div className="flex justify-between text-sm font-bold mb-2">
+                                                        <span>Ma progression</span>
+                                                        <span style={{ color: 'var(--color-secondary)' }}>{done}/{total} ({pct}%)</span>
+                                                    </div>
+                                                    <div style={{ height: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.07)' }}>
+                                                        <div style={{ height: '100%', width: `${pct}%`, borderRadius: '4px', background: 'linear-gradient(90deg, var(--color-secondary), #a855f7)', transition: 'width 0.5s ease', boxShadow: '0 0 8px rgba(236,72,153,0.4)' }} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        <div className="flex flex-col gap-2">
+                                            {personalMilestones.map((m) => (
+                                                <div key={m.id} className="card card-glass fade-enter flex items-center gap-3"
+                                                    style={{ padding: '0.75rem 1rem', border: m.completed ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(236,72,153,0.2)', opacity: m.completed ? 0.6 : 1, transition: 'all 0.2s ease' }}>
+                                                    <button type="button" onClick={() => handleTogglePersonalMilestone(m.id, m.completed)}
+                                                        style={{ width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0, border: `2px solid ${m.completed ? 'var(--color-secondary)' : 'rgba(255,255,255,0.2)'}`, background: m.completed ? 'var(--color-secondary)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                                                        {m.completed && <CheckSquare size={12} color="#fff" />}
+                                                    </button>
+                                                    <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: m.completed ? 400 : 500, textDecoration: m.completed ? 'line-through' : 'none' }}>{m.text}</span>
+                                                    <button type="button" className="btn btn-sm btn-ghost text-secondary" style={{ padding: '2px 6px', opacity: 0.5, fontSize: '0.8rem' }} onClick={() => handleDeletePersonalMilestone(m.id)}>✕</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+
+                {/* TAB: TACHES (ProjectBoard) */}
+                {activeTab === 'taches' && (
+                    <motion.div key="taches" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="tab-pane active h-full" style={{ minHeight: '600px' }}>
                         <ProjectBoard projectId={id as string} user={user} projectMembers={memberships} onActivity={logActivity} sessions={sessions} projectTitle={project?.title || 'Projet'} />
                     </motion.div>
                 )}
@@ -4222,8 +4866,13 @@ export default function ProjectDetail() {
                                             <button className="rm-nav-btn" onClick={() => setRmOffset(o => o + (rmView === 'week' ? 4 : 1))}>Suiv →</button>
                                         </div>
                                         {isAoC && (
-                                            <button className="rm-ai-btn" onClick={() => { setRmAiOpen(o => !o); setRmAiPreview(null); }}>
+                                            <button className="rm-ai-btn" onClick={() => { setRmAiOpen(o => !o); setRmAiPreview(null); if (rmMsGenOpen) setRmMsGenOpen(false); }}>
                                                 ✦ Générer avec IA
+                                            </button>
+                                        )}
+                                        {isAoC && roadmapPhases.length > 0 && (
+                                            <button className="rm-ai-btn" style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(99,102,241,0.12))', borderColor: 'rgba(16,185,129,0.35)', color: '#34d399' }} onClick={() => { setRmMsGenOpen(o => !o); setRmMsPreview(null); if (rmAiOpen) setRmAiOpen(false); }}>
+                                                ◈ Jalons IA
                                             </button>
                                         )}
                                         {isAoC && <>
@@ -4355,6 +5004,118 @@ export default function ProjectDetail() {
                                     );
                                 })()}
 
+                                {/* ── MILESTONE GENERATOR PANEL ── */}
+                                {rmMsGenOpen && roadmapPhases.length > 0 && (() => {
+                                    const MCOL3: Record<string,string> = { milestone:'#f59e0b', deadline:'#ef4444', launch:'#10b981', review:'#3b82f6' };
+                                    const MLBL3: Record<string,string> = { milestone:'Jalon', deadline:'Deadline', launch:'Lancement', review:'Revue' };
+                                    return (
+                                        <div className="rm-ai-panel" style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'linear-gradient(135deg,rgba(8,20,14,0.97),rgba(8,16,24,0.97))' }}>
+                                            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 10% 0%,rgba(16,185,129,0.07) 0%,transparent 55%),radial-gradient(ellipse at 90% 100%,rgba(99,102,241,0.05) 0%,transparent 55%)', pointerEvents: 'none' }} />
+                                            <div className="rm-ai-hdr">
+                                                <div className="rm-ai-title">
+                                                    <div className="rm-ai-icon" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 0 20px rgba(16,185,129,0.3),inset 0 1px 0 rgba(255,255,255,0.2)' }}>◈</div>
+                                                    Générateur de Jalons IA
+                                                </div>
+                                                <button className="rm-ai-close" onClick={() => { setRmMsGenOpen(false); setRmMsPreview(null); }}>✕</button>
+                                            </div>
+                                            {/* Phases summary */}
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Phases détectées</div>
+                                                <div className="rm-ai-sources">
+                                                    {roadmapPhases.map(ph => (
+                                                        <span key={ph.id} className="rm-ai-chip" style={{ borderColor: `${ph.color}40`, color: ph.color, background: `${ph.color}12` }}>
+                                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: ph.color, display: 'inline-block', flexShrink: 0 }} />
+                                                            {ph.title}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {/* Existing milestones warning */}
+                                            {roadmapMilestones.length > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '8px 12px', marginBottom: '1rem' }}>
+                                                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>⚠ {roadmapMilestones.length} jalon{roadmapMilestones.length > 1 ? 's' : ''} existant{roadmapMilestones.length > 1 ? 's' : ''} — l'IA ne les dupliquera pas.</span>
+                                                </div>
+                                            )}
+                                            {/* Prompt */}
+                                            <div className="rm-ai-sources" style={{ marginBottom: '0.75rem' }}>
+                                                <textarea
+                                                    placeholder="Instructions optionnelles — contraintes, livrables clés, dates importantes…"
+                                                    value={rmMsGenPrompt}
+                                                    onChange={e => setRmMsGenPrompt(e.target.value)}
+                                                    rows={2}
+                                                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontFamily: 'inherit', fontSize: '0.85rem', padding: '10px 12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                            {/* Generate button */}
+                                            {!rmMsPreview && (
+                                                <button
+                                                    onClick={handleGenerateMilestones}
+                                                    disabled={rmMsGenerating}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 11, border: 'none', background: rmMsGenerating ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: rmMsGenerating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: rmMsGenerating ? 'none' : '0 4px 16px rgba(16,185,129,0.4)', transition: 'all 0.2s' }}
+                                                >
+                                                    {rmMsGenerating ? (
+                                                        <><span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} /> Génération en cours…</>
+                                                    ) : '◈ Générer les jalons'}
+                                                </button>
+                                            )}
+                                            {/* Preview */}
+                                            {rmMsPreview && (
+                                                <div style={{ marginTop: '0.5rem' }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#34d399', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                                        {rmMsPreview.length} jalon{rmMsPreview.length !== 1 ? 's' : ''} générés
+                                                    </div>
+                                                    {roadmapPhases.map(ph => {
+                                                        const phaseMilestones = rmMsPreview.filter(m => m.phase_id === ph.id);
+                                                        if (!phaseMilestones.length) return null;
+                                                        return (
+                                                            <div key={ph.id} style={{ marginBottom: 12 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: ph.color, flexShrink: 0 }} />
+                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{ph.title}</span>
+                                                                </div>
+                                                                {phaseMilestones.map((m, i) => (
+                                                                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, marginBottom: 6 }}>
+                                                                        <span style={{ padding: '2px 7px', borderRadius: 6, fontSize: '0.66rem', fontWeight: 700, background: `${MCOL3[m.type] || '#f59e0b'}18`, color: MCOL3[m.type] || '#f59e0b', border: `1px solid ${MCOL3[m.type] || '#f59e0b'}30`, flexShrink: 0, marginTop: 1 }}>{MLBL3[m.type] || m.type}</span>
+                                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                                            <div style={{ fontSize: '0.87rem', fontWeight: 600, color: '#f4f4f5', marginBottom: 2 }}>{m.title}</div>
+                                                                            <div style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)' }}>{m.date} · {m.rationale}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {rmMsPreview.filter(m => !roadmapPhases.find(p => p.id === m.phase_id)).length > 0 && (
+                                                        <div style={{ marginBottom: 12 }}>
+                                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Non associés</div>
+                                                            {rmMsPreview.filter(m => !roadmapPhases.find(p => p.id === m.phase_id)).map((m, i) => (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, marginBottom: 6 }}>
+                                                                    <span style={{ padding: '2px 7px', borderRadius: 6, fontSize: '0.66rem', fontWeight: 700, background: `${MCOL3[m.type] || '#f59e0b'}18`, color: MCOL3[m.type] || '#f59e0b', border: `1px solid ${MCOL3[m.type] || '#f59e0b'}30`, flexShrink: 0 }}>{MLBL3[m.type] || m.type}</span>
+                                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                                        <div style={{ fontSize: '0.87rem', fontWeight: 600, color: '#f4f4f5', marginBottom: 2 }}>{m.title}</div>
+                                                                        <div style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)' }}>{m.date}</div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                                        <button onClick={handleApplyMilestones} disabled={rmMsApplying}
+                                                            style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: rmMsApplying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(16,185,129,0.35)', transition: 'all 0.2s' }}>
+                                                            {rmMsApplying ? 'Application…' : `✓ Ajouter ${rmMsPreview.length} jalons à la roadmap`}
+                                                        </button>
+                                                        <button onClick={handleGenerateMilestones} disabled={rmMsGenerating}
+                                                            style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                                                            ↺ Regénérer
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* ── PHASE FORM ── */}
                                 {showPhaseForm && (
                                     <div className="rm-form">
@@ -4473,6 +5234,27 @@ export default function ProjectDetail() {
                                                 {d.creator_name && <span>👤 {d.creator_name}</span>}
                                             </div>
                                             {isPhase && d.description && <div className="rm-ddesc">{d.description}</div>}
+                                            {!isPhase && d.phase_id && (() => {
+                                                const linked = milestones.filter((m: any) => m.phase_id === d.phase_id);
+                                                const pending = linked.filter((m: any) => !m.completed);
+                                                const done = linked.length - pending.length;
+                                                if (linked.length === 0) return null;
+                                                return (
+                                                    <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                                                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.35)', fontWeight: 700, marginBottom: 8 }}>
+                                                            Étapes liées · {done}/{linked.length} complétées
+                                                        </div>
+                                                        {pending.slice(0, 5).map((m: any) => (
+                                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)' }}>
+                                                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.text}</span>
+                                                            </div>
+                                                        ))}
+                                                        {pending.length > 5 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>+{pending.length - 5} autres en attente</div>}
+                                                        {pending.length === 0 && <div style={{ fontSize: '0.72rem', color: '#10b981' }}>✓ Toutes les étapes sont complétées</div>}
+                                                    </div>
+                                                );
+                                            })()}
                                             {canEdit && (
                                                 <div className="rm-dfoot">
                                                     <button className="rm-edit-btn" onClick={() => { setRmEditing({ type: rmSelected.type, data: d }); setEditData(isPhase ? { title: d.title, color: d.color, start_date: d.start_date, end_date: d.end_date, description: d.description || '' } : { title: d.title, date: d.date, type: d.type, phase_id: d.phase_id || '' }); }}>
@@ -4591,11 +5373,22 @@ export default function ProjectDetail() {
                                                             <div style={{ width: LW, flexShrink: 0, position: 'sticky', left: 0, zIndex: 6, background: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.07)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                                                                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: phase.color, flexShrink: 0, boxShadow: `0 0 6px ${phase.color}88` }} />
                                                                 <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif" }}>{phase.title}</span>
+                                                                {(() => { const pe = milestones.filter(m => m.phase_id === phase.id); if (!pe.length) return null; const pd = pe.filter(m => m.completed).length; return <span style={{ fontSize: '0.6rem', fontWeight: 700, color: pd === pe.length ? '#10b981' : phase.color, opacity: 0.8, flexShrink: 0, fontFamily: "'Outfit',sans-serif" }}>{pd}/{pe.length}</span>; })()}
                                                             </div>
                                                             <div style={{ flex: 1, position: 'relative', zIndex: 2, overflow: 'hidden' }}>
-                                                                <div onClick={() => setRmSelected(isSel ? null : { type: 'phase', data: phase })} style={{ position: 'absolute', left: x1, width: bw, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 6, background: `linear-gradient(135deg,${phase.color}CC,${phase.color}88)`, border: isSel ? `2px solid ${phase.color}` : `1px solid ${phase.color}55`, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.7rem', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: isSel ? `0 0 20px ${phase.color}44` : `0 2px 14px ${phase.color}33`, cursor: 'pointer', transition: 'all 0.15s' }}>
-                                                                    {bw > 60 && phase.title}
-                                                                </div>
+                                                                {(() => {
+                                                                    const phEtapes = milestones.filter(m => m.phase_id === phase.id);
+                                                                    const phDone = phEtapes.filter(m => m.completed).length;
+                                                                    const phPct = phEtapes.length > 0 ? Math.round((phDone / phEtapes.length) * 100) : -1;
+                                                                    return (
+                                                                        <div onClick={() => setRmSelected(isSel ? null : { type: 'phase', data: phase })} style={{ position: 'absolute', left: x1, width: bw, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 6, background: `linear-gradient(135deg,${phase.color}CC,${phase.color}88)`, border: isSel ? `2px solid ${phase.color}` : `1px solid ${phase.color}55`, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.7rem', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: isSel ? `0 0 20px ${phase.color}44` : `0 2px 14px ${phase.color}33`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                                                            {/* Progress fill overlay */}
+                                                                            {phPct >= 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${phPct}%`, background: 'rgba(255,255,255,0.18)', borderRadius: phPct === 100 ? 6 : '6px 0 0 6px', transition: 'width 0.6s ease', pointerEvents: 'none' }} />}
+                                                                            {bw > 60 && <span style={{ position: 'relative', zIndex: 1 }}>{phase.title}</span>}
+                                                                            {phPct >= 0 && bw > 90 && <span style={{ position: 'relative', zIndex: 1, marginLeft: 'auto', fontSize: '0.6rem', opacity: 0.85, fontWeight: 700 }}>{phPct}%</span>}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </div>
                                                     );
@@ -4618,12 +5411,22 @@ export default function ProjectDetail() {
                                                                     const x = dateToX(ms.date);
                                                                     const col = MCOL[ms.type] || '#f59e0b';
                                                                     const isSel = rmSelected?.type === 'milestone' && rmSelected.data.id === ms.id;
+                                                                    const msDate = new Date(ms.date + 'T00:00:00');
+                                                                    const daysToMs = Math.ceil((msDate.getTime() - Date.now()) / 86400000);
+                                                                    const phaseEtapes = ms.phase_id ? milestones.filter(m => m.phase_id === ms.phase_id) : [];
+                                                                    const pendingEtapes = phaseEtapes.filter(m => !m.completed).length;
+                                                                    const showWarn = daysToMs >= 0 && daysToMs <= 3 && pendingEtapes > 0;
+                                                                    const isLate = daysToMs < 0 && pendingEtapes > 0;
+                                                                    const effectiveCol = isLate ? '#ef4444' : showWarn ? '#f59e0b' : col;
                                                                     return (
-                                                                        <div key={ms.id} onClick={() => setRmSelected(isSel ? null : { type: 'milestone', data: ms })} style={{ position: 'absolute', left: x, top: '50%', transform: 'translateX(-50%) translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 8, cursor: 'pointer' }} title={`${ms.title} — ${MLBL[ms.type]}`}>
-                                                                            <div style={{ width: isSel ? 16 : 13, height: isSel ? 16 : 13, borderRadius: 3, transform: 'rotate(45deg)', background: col, boxShadow: isSel ? `0 0 20px ${col}AA, 0 0 8px ${col}` : `0 0 12px ${col}77`, flexShrink: 0, border: isSel ? '2px solid rgba(255,255,255,0.6)' : 'none', transition: 'all 0.15s' }} />
+                                                                        <div key={ms.id} onClick={() => setRmSelected(isSel ? null : { type: 'milestone', data: ms })} style={{ position: 'absolute', left: x, top: '50%', transform: 'translateX(-50%) translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 8, cursor: 'pointer' }} title={`${ms.title} — ${MLBL[ms.type]}${showWarn ? ` ⚠ ${pendingEtapes} étape${pendingEtapes>1?'s':''} incomplète${pendingEtapes>1?'s':''}` : ''}`}>
+                                                                            <div style={{ position: 'relative' }}>
+                                                                                <div style={{ width: isSel ? 16 : 13, height: isSel ? 16 : 13, borderRadius: 3, transform: 'rotate(45deg)', background: effectiveCol, boxShadow: isSel ? `0 0 20px ${effectiveCol}AA, 0 0 8px ${effectiveCol}` : `0 0 12px ${effectiveCol}77`, flexShrink: 0, border: isSel ? '2px solid rgba(255,255,255,0.6)' : (showWarn || isLate) ? `1.5px solid ${effectiveCol}` : 'none', transition: 'all 0.15s' }} />
+                                                                                {(showWarn || isLate) && <div style={{ position: 'absolute', top: -5, right: -5, width: 10, height: 10, borderRadius: '50%', background: effectiveCol, border: '1.5px solid #0a0a14', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 900, color: '#fff', animation: 'pulse 1.5s infinite', zIndex: 2 }}>!</div>}
+                                                                            </div>
                                                                             <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                                                                 <div style={{ fontSize: '0.63rem', color: isSel ? '#fff' : 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", fontWeight: isSel ? 600 : 400 }}>{ms.title}</div>
-                                                                                <div style={{ fontSize: '0.57rem', color: col, fontFamily: "'Outfit',sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{MLBL[ms.type]}</div>
+                                                                                <div style={{ fontSize: '0.57rem', color: effectiveCol, fontFamily: "'Outfit',sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isLate ? 'EN RETARD' : showWarn ? `⚠ J-${daysToMs}` : MLBL[ms.type]}</div>
                                                                             </div>
                                                                         </div>
                                                                     );
@@ -4642,11 +5445,564 @@ export default function ProjectDetail() {
                         </motion.div>
                     );
                 })()}
+                {/* ── SPRINTS ─────────────────────────────────────────────── */}
+                {activeTab === 'sprints' && (() => {
+                    const currentSprint = selectedSprintId ? sprints.find(s => s.id === selectedSprintId) : (sprints.find(s => s.status === 'active') || sprints[0] || null);
+                    const displaySprintId = currentSprint?.id || null;
+                    const tasks = displaySprintId ? (sprintTasks[displaySprintId] || []) : [];
+                    const totalPts = tasks.reduce((a, t) => a + (t.story_points || 1), 0);
+                    const donePts = tasks.filter(t => t.completed).reduce((a, t) => a + (t.story_points || 1), 0);
+                    const pct = totalPts > 0 ? Math.round((donePts / totalPts) * 100) : 0;
+                    const daysLeft = currentSprint ? Math.max(0, Math.ceil((new Date(currentSprint.end_date).getTime() - Date.now()) / 86400000)) : 0;
+                    const totalDays = currentSprint ? Math.max(1, Math.ceil((new Date(currentSprint.end_date).getTime() - new Date(currentSprint.start_date).getTime()) / 86400000)) : 1;
+                    const daysPassed = totalDays - daysLeft;
+                    const idealPct = Math.round((daysPassed / totalDays) * 100);
+                    const health = pct >= idealPct - 10 ? 'on-track' : pct >= idealPct - 25 ? 'at-risk' : 'behind';
+                    const healthColor = health === 'on-track' ? '#10b981' : health === 'at-risk' ? '#f59e0b' : '#ef4444';
+                    const healthLabel = health === 'on-track' ? 'En bonne voie' : health === 'at-risk' ? 'À risque' : 'En retard';
+                    const completedSprints = sprints.filter(s => s.status === 'completed');
+                    // Only average sprints where velocity was actually recorded (> 0 means tasks existed)
+                    const scoredSprints = completedSprints.filter(s => (s.velocity ?? -1) >= 0 && s.velocity !== undefined);
+                    const avgVelocity = scoredSprints.length > 0 ? Math.round(scoredSprints.reduce((a, s) => a + (s.velocity || 0), 0) / scoredSprints.length) : null;
+                    const PRIO_COLOR: Record<string,string> = { high: '#ef4444', medium: '#f59e0b', low: '#6366f1' };
+                    const PRIO_LABEL: Record<string,string> = { high: 'Haute', medium: 'Moyenne', low: 'Basse' };
+                    return (
+                        <motion.div key="sprints" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="tab-pane active">
+                        <style>{`
+                            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+                            .sp-wrap { font-family: 'DM Sans', sans-serif; display: grid; grid-template-columns: 220px 1fr; gap: 1.5rem; align-items: start; }
+                            .sp-sidebar { display: flex; flex-direction: column; gap: 6px; }
+                            .sp-sprint-item { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.15s; }
+                            .sp-sprint-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); }
+                            .sp-sprint-item.sp-active { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.35); }
+                            .sp-sprint-name { font-size: 0.83rem; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                            .sp-sprint-meta { font-size: 0.7rem; color: rgba(255,255,255,0.35); margin-top: 3px; }
+                            .sp-status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 20px; }
+                            .sp-status-active { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+                            .sp-status-planning { background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+                            .sp-status-completed { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.08); }
+                            .sp-main { display: flex; flex-direction: column; gap: 1.25rem; }
+                            .sp-header-card { background: linear-gradient(135deg, rgba(14,14,22,0.98), rgba(18,18,28,0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 1.5rem; position: relative; overflow: hidden; }
+                            .sp-header-card::before { content: ''; position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%); pointer-events: none; }
+                            .sp-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 800; color: #fff; margin: 0 0 4px; }
+                            .sp-goal { font-size: 0.85rem; color: rgba(255,255,255,0.45); line-height: 1.5; }
+                            .sp-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 1.25rem; }
+                            .sp-metric { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px; text-align: center; }
+                            .sp-metric-val { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 600; color: #fff; line-height: 1; }
+                            .sp-metric-lbl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.3); margin-top: 5px; font-weight: 700; }
+                            .sp-progress-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 1.25rem; }
+                            .sp-burndown { position: relative; height: 8px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; margin: 10px 0; }
+                            .sp-burndown-ideal { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.12); border-radius: 99px; transition: width 0.6s ease; }
+                            .sp-burndown-actual { position: absolute; top: 0; left: 0; height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+                            .sp-health-dot { width: 8px; height: 8px; border-radius: 50%; animation: sp-pulse 2s infinite; display: inline-block; }
+                            @keyframes sp-pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; } 50% { opacity: 0.7; box-shadow: 0 0 0 4px transparent; } }
+                            .sp-task-list { display: flex; flex-direction: column; gap: 6px; }
+                            .sp-task { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); transition: all 0.15s; group; }
+                            .sp-task:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+                            .sp-task.sp-done { opacity: 0.45; }
+                            .sp-task-check { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid rgba(255,255,255,0.2); background: transparent; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+                            .sp-task-check.sp-checked { background: #10b981; border-color: #10b981; }
+                            .sp-task-title { flex: 1; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+                            .sp-task.sp-done .sp-task-title { text-decoration: line-through; color: rgba(255,255,255,0.3); }
+                            .sp-prio { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+                            .sp-pts { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: rgba(255,255,255,0.3); flex-shrink: 0; min-width: 28px; text-align: right; }
+                            .sp-task-del { opacity: 0; transition: opacity 0.15s; flex-shrink: 0; background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; padding: 2px; display: flex; align-items: center; }
+                            .sp-task:hover .sp-task-del { opacity: 1; }
+                            .sp-add-form { background: rgba(99,102,241,0.05); border: 1px dashed rgba(99,102,241,0.25); border-radius: 14px; padding: 1rem; display: flex; flex-direction: column; gap: 10px; }
+                            .sp-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 8px 12px; color: #fff; font-size: 0.85rem; font-family: inherit; outline: none; width: 100%; box-sizing: border-box; }
+                            .sp-input:focus { border-color: rgba(99,102,241,0.5); background: rgba(99,102,241,0.04); }
+                            .sp-select { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 10px; color: rgba(255,255,255,0.7); font-size: 0.78rem; font-family: inherit; outline: none; cursor: pointer; }
+                            .sp-btn { padding: 8px 16px; border-radius: 10px; border: none; font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+                            .sp-btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
+                            .sp-btn-primary:hover { background: linear-gradient(135deg, #7678f0, #5f5cf0); }
+                            .sp-btn-ghost { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.1); }
+                            .sp-btn-ghost:hover { background: rgba(255,255,255,0.09); color: #fff; }
+                            .sp-btn-danger { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+                            .sp-btn-danger:hover { background: rgba(239,68,68,0.18); }
+                            .sp-section-title { font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 700; color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+                            .sp-retro { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+                            .sp-retro-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 1rem; }
+                            .sp-retro-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+                            .sp-velocity-bar { display: flex; align-items: flex-end; gap: 4px; height: 48px; margin-top: 10px; }
+                            .sp-vel-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+                            .sp-vel-bar { width: 100%; border-radius: 4px 4px 0 0; background: rgba(99,102,241,0.5); min-height: 4px; transition: height 0.4s ease; }
+                            .sp-vel-lbl { font-size: 0.58rem; color: rgba(255,255,255,0.3); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36px; }
+                            .sp-empty { text-align: center; padding: 2.5rem 1rem; color: rgba(255,255,255,0.25); font-size: 0.85rem; }
+                        `}</style>
+                        <div style={{ padding: '0 2rem 2rem' }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: '1.35rem', fontWeight: 800, margin: 0, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <span style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Zap size={16} color="#fff" fill="#fff" />
+                                        </span>
+                                        Sprints
+                                    </h2>
+                                    <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.35)' }}>Cycles de travail structurés · itération rapide</p>
+                                </div>
+                                {isAdminOrCreator && (
+                                    <button className="sp-btn sp-btn-primary" onClick={() => setShowSprintForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Plus size={14} /> Nouveau sprint
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Create sprint form */}
+                            {showSprintForm && (
+                                <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 18, padding: '1.5rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: '1rem', marginBottom: '1rem', color: '#c4b5fd' }}>Créer un sprint</div>
+                                    <form onSubmit={handleCreateSprint} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <input className="sp-input" placeholder="Nom du sprint (ex: Sprint 1 — Auth & Onboarding)" required value={newSprintForm.title} onChange={e => setNewSprintForm(p => ({ ...p, title: e.target.value }))} />
+                                        <input className="sp-input" placeholder="Objectif du sprint (optionnel)" value={newSprintForm.goal} onChange={e => setNewSprintForm(p => ({ ...p, goal: e.target.value }))} />
+                                        <div>
+                                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Période du sprint</div>
+                                            <SprintDateRangePicker
+                                                startDate={newSprintForm.start_date}
+                                                endDate={newSprintForm.end_date}
+                                                onStartChange={v => setNewSprintForm(p => ({ ...p, start_date: v }))}
+                                                onEndChange={v => setNewSprintForm(p => ({ ...p, end_date: v }))}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                            {(!newSprintForm.start_date || !newSprintForm.end_date) && (
+                                                <span style={{ fontSize: '0.72rem', color: '#f59e0b', marginRight: 'auto' }}>⚠ Sélectionnez une période</span>
+                                            )}
+                                            <button type="button" className="sp-btn sp-btn-ghost" onClick={() => setShowSprintForm(false)}>Annuler</button>
+                                            <button type="submit" className="sp-btn sp-btn-primary" disabled={creatingSprint || !newSprintForm.start_date || !newSprintForm.end_date}>{creatingSprint ? 'Création...' : 'Créer le sprint'}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            {sprints.length === 0 ? (
+                                <div className="sp-empty" style={{ border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 20, padding: '4rem 2rem' }}>
+                                    <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>⚡</div>
+                                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: '1.05rem', color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>Aucun sprint encore</div>
+                                    <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.22)' }}>Créez votre premier sprint pour commencer à travailler de manière structurée.</div>
+                                </div>
+                            ) : (
+                                <div className="sp-wrap">
+                                    {/* Sidebar: Sprint list */}
+                                    <div className="sp-sidebar">
+                                        <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', fontWeight: 700, padding: '0 4px', marginBottom: 4 }}>Tous les sprints</div>
+                                        {sprints.map(s => {
+                                            const stasks = sprintTasks[s.id] || [];
+                                            const sDone = stasks.filter(t => t.completed).length;
+                                            const isSelected = (selectedSprintId || currentSprint?.id) === s.id;
+                                            return (
+                                                <div key={s.id} className={`sp-sprint-item${isSelected ? ' sp-active' : ''}`} onClick={() => setSelectedSprintId(s.id)}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 5 }}>
+                                                        <span className={`sp-status-badge ${s.status === 'active' ? 'sp-status-active' : s.status === 'planning' ? 'sp-status-planning' : 'sp-status-completed'}`}>
+                                                            {s.status === 'active' && <span className="sp-health-dot" style={{ background: '#10b981', color: '#10b981' }} />}
+                                                            {s.status === 'active' ? 'Actif' : s.status === 'planning' ? 'Planifié' : 'Terminé'}
+                                                        </span>
+                                                        {isAdminOrCreator && (
+                                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                                {s.status === 'planning' && (
+                                                                    <button className="sp-task-del" style={{ opacity: 1 }} onClick={e => { e.stopPropagation(); handleActivateSprint(s.id); }} title="Activer"><Zap size={11} style={{ color: '#818cf8' }} /></button>
+                                                                )}
+                                                                <button className="sp-task-del" style={{ opacity: 1 }} onClick={e => { e.stopPropagation(); setSprintDeleteConfirm({ sprintId: s.id, title: s.title }); }} title="Supprimer"><Trash2 size={11} style={{ color: '#f87171' }} /></button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="sp-sprint-name">{s.title}</div>
+                                                    <div className="sp-sprint-meta">
+                                                        {s.start_date && s.end_date ? `${new Date(s.start_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} → ${new Date(s.end_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : ''}
+                                                        {stasks.length > 0 && ` · ${sDone}/${stasks.length}`}
+                                                    </div>
+                                                    {stasks.length > 0 && (
+                                                        <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 99, marginTop: 7, overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${Math.round((sDone/stasks.length)*100)}%`, background: s.status === 'completed' ? 'rgba(255,255,255,0.3)' : '#6366f1', borderRadius: 99, transition: 'width 0.5s' }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Velocity chart */}
+                                        {completedSprints.length >= 2 && (
+                                            <div style={{ marginTop: 12, padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14 }}>
+                                                <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.35)', fontWeight: 700, marginBottom: 6 }}>Vélocité</div>
+                                                {avgVelocity !== null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '1.1rem', fontWeight: 600, color: '#818cf8' }}>{avgVelocity} <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'inherit' }}>pts/sprint</span></div>}
+                                                <div className="sp-velocity-bar">
+                                                    {(() => {
+                                                        const last5 = completedSprints.slice(0, 5).reverse();
+                                                        const maxV = Math.max(...last5.map(s => s.velocity || 0), 1);
+                                                        return last5.map(s => (
+                                                            <div key={s.id} className="sp-vel-col">
+                                                                <div className="sp-vel-bar" style={{ height: `${Math.round(((s.velocity || 0) / maxV) * 100)}%`, minHeight: 4 }} title={`${s.title}: ${s.velocity || 0}pts`} />
+                                                                <div className="sp-vel-lbl">{(s.velocity || 0)}p</div>
+                                                            </div>
+                                                        ));
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Main area */}
+                                    {currentSprint ? (
+                                        <div className="sp-main">
+                                            {/* Sprint Header card */}
+                                            <div className="sp-header-card">
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                                            <span className={`sp-status-badge ${currentSprint.status === 'active' ? 'sp-status-active' : currentSprint.status === 'planning' ? 'sp-status-planning' : 'sp-status-completed'}`}>
+                                                                {currentSprint.status === 'active' && <span className="sp-health-dot" style={{ background: '#10b981', color: '#10b981' }} />}
+                                                                {currentSprint.status === 'active' ? 'En cours' : currentSprint.status === 'planning' ? 'Planification' : 'Terminé'}
+                                                            </span>
+                                                            {currentSprint.status === 'active' && (
+                                                                <span style={{ fontSize: '0.7rem', color: healthColor, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: healthColor, display: 'inline-block' }} />
+                                                                    {healthLabel}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <h3 className="sp-title">{currentSprint.title}</h3>
+                                                        {currentSprint.goal && <p className="sp-goal">{currentSprint.goal}</p>}
+                                                    </div>
+                                                    {isAdminOrCreator && (
+                                                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                            <button className="sp-btn sp-btn-ghost" onClick={() => { setShowEditSprint(true); setEditSprintData({ title: currentSprint.title, goal: currentSprint.goal || '', start_date: currentSprint.start_date, end_date: currentSprint.end_date, status: currentSprint.status }); }} style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                                <Edit3 size={12} /> Modifier
+                                                            </button>
+                                                            {currentSprint.status === 'active' && (
+                                                                <button className="sp-btn sp-btn-danger" onClick={handleCloseSprint} disabled={closingSprint}>
+                                                                    {closingSprint ? 'Clôture...' : '✓ Clôturer'}
+                                                                </button>
+                                                            )}
+                                                            {currentSprint.status === 'planning' && (
+                                                                <button className="sp-btn sp-btn-primary" onClick={() => handleActivateSprint(currentSprint.id)}>
+                                                                    <Zap size={13} style={{ marginRight: 4 }} /> Lancer
+                                                                </button>
+                                                            )}
+                                                            {currentSprint.status === 'completed' && (
+                                                                <button className="sp-btn sp-btn-ghost" onClick={() => handleActivateSprint(currentSprint.id)} style={{ fontSize: '0.75rem' }}>
+                                                                    ↩ Réouvrir
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Metrics row */}
+                                                <div className="sp-metrics">
+                                                    <div className="sp-metric">
+                                                        <div className="sp-metric-val" style={{ color: '#818cf8' }}>{pct}%</div>
+                                                        <div className="sp-metric-lbl">Complété</div>
+                                                    </div>
+                                                    <div className="sp-metric">
+                                                        <div className="sp-metric-val" style={{ color: currentSprint.status === 'active' && daysLeft <= 2 ? '#ef4444' : '#fff' }}>{currentSprint.status === 'completed' ? '✓' : daysLeft}</div>
+                                                        <div className="sp-metric-lbl">{currentSprint.status === 'completed' ? 'Terminé' : 'Jours restants'}</div>
+                                                    </div>
+                                                    <div className="sp-metric">
+                                                        <div className="sp-metric-val" style={{ color: '#10b981' }}>{donePts}</div>
+                                                        <div className="sp-metric-lbl">Points livrés</div>
+                                                    </div>
+                                                    <div className="sp-metric">
+                                                        <div className="sp-metric-val">{tasks.length}</div>
+                                                        <div className="sp-metric-lbl">Tâches total</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Burndown bar */}
+                                                {currentSprint.status === 'active' && totalPts > 0 && (
+                                                    <div style={{ marginTop: 14 }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Progression vs idéal</div>
+                                                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)' }}>J{daysPassed}/{totalDays}</div>
+                                                        </div>
+                                                        <div className="sp-burndown">
+                                                            <div className="sp-burndown-ideal" style={{ width: `${idealPct}%` }} />
+                                                            <div className="sp-burndown-actual" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${healthColor}CC, ${healthColor})` }} />
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'rgba(255,255,255,0.25)' }}>
+                                                            <span>Réel: {pct}%</span>
+                                                            <span>Idéal: {idealPct}%</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Edit sprint form */}
+                                            {showEditSprint && (
+                                                <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.22)', borderRadius: 18, padding: '1.25rem' }}>
+                                                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#c4b5fd', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                        <span>Modifier le sprint</span>
+                                                        <button type="button" onClick={() => setShowEditSprint(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
+                                                    </div>
+                                                    <form onSubmit={handleUpdateSprint} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        <input className="sp-input" placeholder="Nom du sprint" required value={editSprintData.title} onChange={e => setEditSprintData(p => ({ ...p, title: e.target.value }))} />
+                                                        <input className="sp-input" placeholder="Objectif du sprint (optionnel)" value={editSprintData.goal} onChange={e => setEditSprintData(p => ({ ...p, goal: e.target.value }))} />
+                                                        <div>
+                                                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Période</div>
+                                                            <SprintDateRangePicker
+                                                                startDate={editSprintData.start_date}
+                                                                endDate={editSprintData.end_date}
+                                                                onStartChange={v => setEditSprintData(p => ({ ...p, start_date: v }))}
+                                                                onEndChange={v => setEditSprintData(p => ({ ...p, end_date: v }))}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Statut</div>
+                                                            <div style={{ display: 'flex', gap: 6 }}>
+                                                                {(['planning','active','completed'] as const).map(st => (
+                                                                    <button key={st} type="button" onClick={() => setEditSprintData(p => ({ ...p, status: st }))}
+                                                                        style={{ flex: 1, padding: '7px 10px', borderRadius: 10, border: editSprintData.status === st ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.08)', background: editSprintData.status === st ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)', color: editSprintData.status === st ? '#c4b5fd' : 'rgba(255,255,255,0.45)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s' }}>
+                                                                        {st === 'planning' ? 'Planifié' : st === 'active' ? 'Actif' : 'Terminé'}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+                                                            <button type="button" className="sp-btn sp-btn-ghost" onClick={() => setShowEditSprint(false)}>Annuler</button>
+                                                            <button type="submit" className="sp-btn sp-btn-primary" disabled={savingEditSprint}>{savingEditSprint ? 'Sauvegarde...' : 'Sauvegarder'}</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            )}
+
+                                            {/* Retrospective (if completed and retro exists) */}
+                                            {currentSprint.status === 'completed' && currentSprint.retro && (
+                                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '1.25rem' }}>
+                                                    <div className="sp-section-title" style={{ marginBottom: 14 }}>
+                                                        <span style={{ width: 24, height: 24, borderRadius: 7, background: 'rgba(99,102,241,0.2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>📝</span>
+                                                        Rétrospective
+                                                    </div>
+                                                    <div className="sp-retro">
+                                                        <div className="sp-retro-card">
+                                                            <div className="sp-retro-label" style={{ color: '#10b981' }}>✓ Ce qui a bien marché</div>
+                                                            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{currentSprint.retro.went_well || '—'}</div>
+                                                        </div>
+                                                        <div className="sp-retro-card">
+                                                            <div className="sp-retro-label" style={{ color: '#f59e0b' }}>⚠ À améliorer</div>
+                                                            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{currentSprint.retro.improvements || '—'}</div>
+                                                        </div>
+                                                        <div className="sp-retro-card">
+                                                            <div className="sp-retro-label" style={{ color: '#818cf8' }}>→ Actions suivantes</div>
+                                                            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{currentSprint.retro.next_actions || '—'}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Retro form (just closed sprint) */}
+                                            {showRetroForm && currentSprint.status === 'completed' && !currentSprint.retro && (
+                                                <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 18, padding: '1.25rem' }}>
+                                                    <div className="sp-section-title" style={{ color: '#c4b5fd', marginBottom: 14 }}>
+                                                        <span style={{ fontSize: '1rem' }}>📝</span> Rétrospective de sprint
+                                                    </div>
+                                                    <form onSubmit={handleSaveRetro} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>✓ Ce qui a bien marché</div>
+                                                            <textarea className="sp-input" rows={2} placeholder="Ce sprint a bien fonctionné parce que..." value={retroForm.went_well} onChange={e => setRetroForm(p => ({ ...p, went_well: e.target.value }))} style={{ resize: 'vertical' }} />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>⚠ À améliorer</div>
+                                                            <textarea className="sp-input" rows={2} placeholder="On pourrait améliorer..." value={retroForm.improvements} onChange={e => setRetroForm(p => ({ ...p, improvements: e.target.value }))} style={{ resize: 'vertical' }} />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>→ Actions pour le prochain sprint</div>
+                                                            <textarea className="sp-input" rows={2} placeholder="Pour le prochain sprint, on va..." value={retroForm.next_actions} onChange={e => setRetroForm(p => ({ ...p, next_actions: e.target.value }))} style={{ resize: 'vertical' }} />
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                                            <button type="button" className="sp-btn sp-btn-ghost" onClick={() => setShowRetroForm(false)}>Passer</button>
+                                                            <button type="submit" className="sp-btn sp-btn-primary" disabled={savingRetro}>{savingRetro ? 'Sauvegarde...' : 'Sauvegarder la rétro'}</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            )}
+
+                                            {/* Backlog */}
+                                            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '1.25rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                                    <div className="sp-section-title" style={{ margin: 0 }}>
+                                                        <CheckSquare size={16} style={{ color: '#6366f1' }} />
+                                                        Backlog du sprint
+                                                        {tasks.length > 0 && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontWeight: 400, marginLeft: 2 }}>({tasks.filter(t => t.completed).length}/{tasks.length})</span>}
+                                                    </div>
+                                                    {currentSprint.status !== 'completed' && (
+                                                        <button className="sp-btn sp-btn-ghost" onClick={() => setShowTaskForm(p => !p)} style={{ padding: '5px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                            <Plus size={12} /> Ajouter
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Add task form */}
+                                                {showTaskForm && currentSprint.status !== 'completed' && (
+                                                    <div className="sp-add-form" style={{ marginBottom: 12 }}>
+                                                        <form onSubmit={handleAddSprintTask} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                            <input className="sp-input" placeholder="Description de la tâche..." required value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} autoFocus />
+                                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontWeight: 600 }}>Priorité</span>
+                                                                    <select className="sp-select" value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
+                                                                        <option value="high">Haute</option>
+                                                                        <option value="medium">Moyenne</option>
+                                                                        <option value="low">Basse</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontWeight: 600 }}>Points</span>
+                                                                    <select className="sp-select" value={newTaskPoints} onChange={e => setNewTaskPoints(Number(e.target.value))}>
+                                                                        {[1,2,3,5,8,13].map(p => <option key={p} value={p}>{p}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                                                                    <button type="button" className="sp-btn sp-btn-ghost" style={{ padding: '5px 10px', fontSize: '0.78rem' }} onClick={() => setShowTaskForm(false)}>Annuler</button>
+                                                                    <button type="submit" className="sp-btn sp-btn-primary" style={{ padding: '5px 12px', fontSize: '0.78rem' }} disabled={addingTask}>{addingTask ? '...' : 'Ajouter'}</button>
+                                                                </div>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                )}
+
+                                                {/* Task list — by priority */}
+                                                {tasks.length === 0 ? (
+                                                    <div className="sp-empty" style={{ padding: '2rem 1rem' }}>
+                                                        {currentSprint.status === 'completed' ? 'Ce sprint n\'avait aucune tâche.' : 'Ajoutez des tâches au backlog pour commencer.'}
+                                                    </div>
+                                                ) : (
+                                                    <div className="sp-task-list">
+                                                        {(['high','medium','low'] as const).map(prio => {
+                                                            const ptasks = tasks.filter(t => t.priority === prio);
+                                                            if (ptasks.length === 0) return null;
+                                                            return (
+                                                                <div key={prio}>
+                                                                    <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: PRIO_COLOR[prio], marginBottom: 5, marginTop: 8, paddingLeft: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: PRIO_COLOR[prio], display: 'inline-block' }} />
+                                                                        {PRIO_LABEL[prio]}
+                                                                    </div>
+                                                                    {ptasks.map(task => (
+                                                                        <div key={task.id} className={`sp-task${task.completed ? ' sp-done' : ''}`}>
+                                                                            <button className={`sp-task-check${task.completed ? ' sp-checked' : ''}`} onClick={() => handleToggleSprintTask(task.id, !task.completed)}>
+                                                                                {task.completed && <CheckCircle size={11} color="#fff" fill="#fff" />}
+                                                                            </button>
+                                                                            <span className="sp-task-title">{task.title}</span>
+                                                                            <span className="sp-prio" style={{ background: `${PRIO_COLOR[task.priority]}15`, color: PRIO_COLOR[task.priority], border: `1px solid ${PRIO_COLOR[task.priority]}30` }}>{PRIO_LABEL[task.priority][0]}</span>
+                                                                            <span className="sp-pts">{task.story_points}p</span>
+                                                                            {isAdminOrCreator && (
+                                                                                <button className="sp-task-del" onClick={() => handleDeleteSprintTask(task.id)} title="Supprimer">
+                                                                                    <X size={12} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Sprint stats breakdown (completed tasks by member) */}
+                                            {tasks.filter(t => t.completed).length > 0 && (
+                                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '1.25rem' }}>
+                                                    <div className="sp-section-title" style={{ marginBottom: 14 }}>
+                                                        <TrendingUp size={15} style={{ color: '#10b981' }} /> Contribution
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                        {(() => {
+                                                            const byMember: Record<string, { name: string; pts: number }> = {};
+                                                            tasks.filter(t => t.completed).forEach(t => {
+                                                                if (!byMember[t.created_by]) byMember[t.created_by] = { name: t.created_by_name, pts: 0 };
+                                                                byMember[t.created_by].pts += (t.story_points || 1);
+                                                            });
+                                                            const entries = Object.values(byMember).sort((a, b) => b.pts - a.pts);
+                                                            const maxPts = entries[0]?.pts || 1;
+                                                            return entries.map((e, i) => (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, color: '#818cf8', flexShrink: 0 }}>
+                                                                        {(e.name || 'A')[0].toUpperCase()}
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                                                                            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)' }}>{e.name}</span>
+                                                                            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '0.72rem', color: '#818cf8' }}>{e.pts}p</span>
+                                                                        </div>
+                                                                        <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 99, overflow: 'hidden' }}>
+                                                                            <div style={{ height: '100%', width: `${Math.round((e.pts/maxPts)*100)}%`, background: 'linear-gradient(90deg,#6366f1,#818cf8)', borderRadius: 99, transition: 'width 0.6s' }} />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="sp-empty" style={{ border: '1px dashed rgba(255,255,255,0.07)', borderRadius: 18 }}>
+                                            Sélectionnez un sprint dans la liste.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        </motion.div>
+                    );
+                })()}
 
 
 
                 </AnimatePresence>
             </div>{/* end tabs-content */}
+
+            {/* Sprint Delete Confirmation */}
+            <AnimatePresence>
+            {sprintDeleteConfirm && (
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', padding: '1rem' }}
+                    onClick={() => setSprintDeleteConfirm(null)}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.92, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 12 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: '100%', maxWidth: 400, background: 'linear-gradient(160deg,#0f0f1a,#13131f)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)' }}
+                    >
+                        {/* Red top accent */}
+                        <div style={{ height: 3, background: 'linear-gradient(90deg,#ef4444,#f97316)' }} />
+                        <div style={{ padding: '1.75rem 1.75rem 1.5rem' }}>
+                            {/* Icon + title */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: '1.25rem' }}>
+                                <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Trash2 size={18} style={{ color: '#f87171' }} />
+                                </div>
+                                <div>
+                                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: '1.05rem', color: '#fff', marginBottom: 5 }}>Supprimer ce sprint ?</div>
+                                    <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>"{sprintDeleteConfirm.title}"</span> et toutes ses tâches seront supprimés définitivement.
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Warning note */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: 10, padding: '9px 12px', marginBottom: '1.5rem' }}>
+                                <AlertCircle size={13} style={{ color: '#f87171', flexShrink: 0 }} />
+                                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>Cette action est irréversible.</span>
+                            </div>
+                            {/* Buttons */}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setSprintDeleteConfirm(null)}
+                                    style={{ flex: 1, padding: '10px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}>
+                                    Annuler
+                                </button>
+                                <button onClick={() => { handleDeleteSprint(sprintDeleteConfirm.sprintId); setSprintDeleteConfirm(null); }}
+                                    style={{ flex: 1, padding: '10px', borderRadius: 11, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(239,68,68,0.35)', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg,#f87171,#ef4444)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(239,68,68,0.5)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg,#ef4444,#dc2626)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(239,68,68,0.35)'; }}>
+                                    Supprimer
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+            </AnimatePresence>
 
             {/* Edit Project Modal */}
             {showEditObjModal && (

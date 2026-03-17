@@ -69,7 +69,7 @@ export default function ObjectiveDetail() {
     ];
     const HOUR_PRESETS = [10, 20, 50, 100, 200];
 
-    const [milestones, setMilestones] = useState<{ id: string, text: string, description?: string, estimated_hours?: number, completed: boolean }[]>([]);
+    const [milestones, setMilestones] = useState<{ id: string, text: string, description?: string, estimated_hours?: number, completed: boolean, phase_id?: string }[]>([]);
     const [generatingAI, setGeneratingAI] = useState(false);
 
     const [resources, setResources] = useState<{ id: string, text: string }[]>([]);
@@ -101,7 +101,8 @@ export default function ObjectiveDetail() {
     const [newPersonalStep, setNewPersonalStep] = useState('');
     const [milestoneSubTab, setMilestoneSubTab] = useState<'group' | 'personal'>('group');
     const [showGroupStepForm, setShowGroupStepForm] = useState(false);
-    const [newGroupStep, setNewGroupStep] = useState({ text: '', description: '' });
+    const [newGroupStep, setNewGroupStep] = useState({ text: '', description: '', phase_id: '' });
+    const [milestonePhaseFilter, setMilestonePhaseFilter] = useState<string>('all');
     const [suggestingAI, setSuggestingAI] = useState(false);
 
     // Agenda AI state
@@ -617,6 +618,7 @@ export default function ObjectiveDetail() {
             text: newGroupStep.text.trim(),
             description: newGroupStep.description.trim(),
             completed: false,
+            phase_id: newGroupStep.phase_id || '',
             created_at: serverTimestamp()
         });
 
@@ -631,7 +633,7 @@ export default function ObjectiveDetail() {
             });
         }
 
-        setNewGroupStep({ text: '', description: '' });
+        setNewGroupStep({ text: '', description: '', phase_id: '' });
         setShowGroupStepForm(false);
     };
 
@@ -1319,6 +1321,11 @@ export default function ObjectiveDetail() {
     const [rmAiGenerating, setRmAiGenerating] = useState(false);
     const [rmAiPreview, setRmAiPreview] = useState<{phases:any[];milestones:any[]}|null>(null);
     const [rmAiApplying, setRmAiApplying] = useState(false);
+    const [rmMsGenOpen, setRmMsGenOpen] = useState(false);
+    const [rmMsGenPrompt, setRmMsGenPrompt] = useState('');
+    const [rmMsGenerating, setRmMsGenerating] = useState(false);
+    const [rmMsPreview, setRmMsPreview] = useState<{title:string;date:string;type:string;phase_id:string;rationale:string}[]|null>(null);
+    const [rmMsApplying, setRmMsApplying] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -1411,6 +1418,44 @@ export default function ObjectiveDetail() {
             setRmAiOpen(false); setRmAiPreview(null); setRmAiPrompt('');
         } catch (err) { console.error(err); }
         setRmAiApplying(false);
+    };
+
+    const handleGenerateMilestones = async () => {
+        if (!roadmapPhases.length || !objective) return;
+        setRmMsGenerating(true); setRmMsPreview(null);
+        try {
+            const res = await fetch('/api/generate-milestones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                type: 'objective', title: objective.title, description: objective.description || '',
+                category: objective.category,
+                phases: roadmapPhases.map(p => ({ id: p.id, title: p.title, start_date: p.start_date, end_date: p.end_date, description: p.description || '' })),
+                existingMilestones: roadmapMilestones.map(m => ({ title: m.title, date: m.date })),
+                steps: milestones.map(m => ({ text: m.text, completed: m.completed })),
+                decisions: [],
+                userPrompt: rmMsGenPrompt,
+                today: new Date().toISOString().split('T')[0],
+            }) });
+            if (!res.ok) throw new Error('API error');
+            const data = await res.json();
+            setRmMsPreview(data.milestones || []);
+        } catch (err) { console.error(err); }
+        setRmMsGenerating(false);
+    };
+
+    const handleApplyMilestones = async () => {
+        if (!rmMsPreview?.length || !user) return;
+        setRmMsApplying(true);
+        try {
+            for (const ms of rmMsPreview) {
+                await addDoc(collection(db, 'objectives', id as string, 'roadmap_milestones'), {
+                    title: ms.title, date: ms.date, type: ms.type || 'milestone',
+                    phase_id: ms.phase_id || '',
+                    creator_id: user.uid, creator_name: user.displayName || user.email?.split('@')[0] || 'IA',
+                    created_at: serverTimestamp(),
+                });
+            }
+            setRmMsGenOpen(false); setRmMsPreview(null); setRmMsGenPrompt('');
+        } catch (err) { console.error(err); }
+        setRmMsApplying(false);
     };
 
     // ─── ANNOUNCEMENT COMMENTS ─────────────────────────────────────────────
@@ -2422,6 +2467,15 @@ export default function ObjectiveDetail() {
                                             value={newGroupStep.description}
                                             onChange={e => setNewGroupStep(s => ({ ...s, description: e.target.value }))}
                                         />
+                                        {roadmapPhases.length > 0 && (
+                                            <div>
+                                                <label className="text-xs text-secondary" style={{ marginBottom: 4, display: 'block' }}>Phase liée <span className="opacity-40">(optionnel)</span></label>
+                                                <select className="input" style={{ fontSize: '0.85rem', padding: '6px 10px' }} value={newGroupStep.phase_id} onChange={e => setNewGroupStep(s => ({ ...s, phase_id: e.target.value }))}>
+                                                    <option value="">— Aucune phase —</option>
+                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id} style={{ background: '#1a1a2e' }}>{ph.title}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
                                         <div className="flex gap-2">
                                             <button type="submit" className="btn btn-sm btn-primary flex-1">✓ Ajouter l'étape</button>
                                             <button type="button" className="btn btn-sm btn-ghost text-secondary" onClick={() => setShowGroupStepForm(false)}>Annuler</button>
@@ -2451,6 +2505,14 @@ export default function ObjectiveDetail() {
                                     </div>
                                 ) : milestones.length > 0 ? (
                                     <>
+                                        {/* Phase filter chips */}
+                                        {roadmapPhases.length > 0 && (
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                                                {[{ id: 'all', label: 'Toutes', color: 'rgba(255,255,255,0.2)' }, { id: 'none', label: 'Sans phase', color: 'rgba(255,255,255,0.12)' }, ...roadmapPhases.map(ph => ({ id: ph.id, label: ph.title, color: ph.color }))].map(chip => (
+                                                    <button key={chip.id} onClick={() => setMilestonePhaseFilter(chip.id)} style={{ padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 600, border: `1px solid ${chip.color}55`, background: milestonePhaseFilter === chip.id ? `${chip.color}33` : 'rgba(255,255,255,0.03)', color: milestonePhaseFilter === chip.id ? '#fff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>{chip.label}</button>
+                                                ))}
+                                            </div>
+                                        )}
                                         {/* Progress bar */}
                                         {(() => {
                                             const done = milestones.filter(m => m.completed).length;
@@ -2469,7 +2531,7 @@ export default function ObjectiveDetail() {
                                             );
                                         })()}
                                         <div className="milestones-list">
-                                            {milestones.map((m, idx) => (
+                                            {milestones.filter(m => milestonePhaseFilter === 'all' ? true : milestonePhaseFilter === 'none' ? !m.phase_id : m.phase_id === milestonePhaseFilter).map((m, idx) => (
                                                 <div key={m.id} className={`checklist-item ${m.completed ? 'checked' : ''} fade-enter`} style={{ alignItems: 'flex-start', padding: '1rem', animationDelay: `${idx * 0.04}s` }}>
                                                     <div className="custom-checkbox flex-shrink-0 mt-1" onClick={() => toggleMilestone(m.id, m.completed)}>
                                                         {m.completed && <CheckSquare size={14} color="#fff" />}
@@ -2482,6 +2544,14 @@ export default function ObjectiveDetail() {
                                                                     ⏱ {fmtHours(m.estimated_hours)}
                                                                 </span>
                                                             )}
+                                                            {m.phase_id && (() => { const ph = roadmapPhases.find(p => p.id === m.phase_id); return ph ? <span style={{ fontSize: '0.65rem', padding: '1px 8px', borderRadius: 10, background: `${ph.color}22`, color: ph.color, border: `1px solid ${ph.color}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{ph.title}</span> : null; })()}
+                                                            {!m.phase_id && roadmapPhases.length > 0 && (
+                                                                <select style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }} defaultValue="" onChange={async e => { if (e.target.value) await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: e.target.value }); }}>
+                                                                    <option value="" disabled>+ phase</option>
+                                                                    {roadmapPhases.map(ph => <option key={ph.id} value={ph.id}>{ph.title}</option>)}
+                                                                </select>
+                                                            )}
+                                                            {m.phase_id && <button onClick={async () => await updateDoc(doc(db, 'objectives', id as string, 'milestones', m.id), { phase_id: '' })} style={{ fontSize: '0.6rem', padding: '1px 5px', borderRadius: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }} title="Délier la phase">⊗</button>}
                                                         </div>
                                                         {m.description && (
                                                             <span className={`text-sm mt-1 mb-1 ${m.completed ? 'opacity-50' : 'opacity-80'}`} style={{ lineHeight: '1.4' }}>
@@ -4331,8 +4401,13 @@ export default function ObjectiveDetail() {
                                             <button className="rm-nav-btn" onClick={() => setRmOffset(o => o + (rmView === 'week' ? 4 : 1))}>Suiv →</button>
                                         </div>
                                         {isAoC && (
-                                            <button className="rm-ai-btn" onClick={() => { setRmAiOpen(o => !o); setRmAiPreview(null); }}>
+                                            <button className="rm-ai-btn" onClick={() => { setRmAiOpen(o => !o); setRmAiPreview(null); if (rmMsGenOpen) setRmMsGenOpen(false); }}>
                                                 ✦ Générer avec IA
+                                            </button>
+                                        )}
+                                        {isAoC && roadmapPhases.length > 0 && (
+                                            <button className="rm-ai-btn" style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(99,102,241,0.12))', borderColor: 'rgba(16,185,129,0.35)', color: '#34d399' }} onClick={() => { setRmMsGenOpen(o => !o); setRmMsPreview(null); if (rmAiOpen) setRmAiOpen(false); }}>
+                                                ◈ Jalons IA
                                             </button>
                                         )}
                                         {isAoC && <>
@@ -4464,6 +4539,89 @@ export default function ObjectiveDetail() {
                                     );
                                 })()}
 
+                                {/* ── MILESTONE GENERATOR PANEL ── */}
+                                {rmMsGenOpen && roadmapPhases.length > 0 && (() => {
+                                    const MCOL3: Record<string,string> = { milestone:'#f59e0b', deadline:'#ef4444', launch:'#10b981', review:'#3b82f6' };
+                                    const MLBL3: Record<string,string> = { milestone:'Jalon', deadline:'Deadline', launch:'Lancement', review:'Revue' };
+                                    return (
+                                        <div className="rm-ai-panel" style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'linear-gradient(135deg,rgba(8,20,14,0.97),rgba(8,16,24,0.97))' }}>
+                                            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 10% 0%,rgba(16,185,129,0.07) 0%,transparent 55%),radial-gradient(ellipse at 90% 100%,rgba(99,102,241,0.05) 0%,transparent 55%)', pointerEvents: 'none' }} />
+                                            <div className="rm-ai-hdr">
+                                                <div className="rm-ai-title">
+                                                    <div className="rm-ai-icon" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 0 20px rgba(16,185,129,0.3),inset 0 1px 0 rgba(255,255,255,0.2)' }}>◈</div>
+                                                    Générateur de Jalons IA
+                                                </div>
+                                                <button className="rm-ai-close" onClick={() => { setRmMsGenOpen(false); setRmMsPreview(null); }}>✕</button>
+                                            </div>
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Phases détectées</div>
+                                                <div className="rm-ai-sources">
+                                                    {roadmapPhases.map(ph => (
+                                                        <span key={ph.id} className="rm-ai-chip" style={{ borderColor: `${ph.color}40`, color: ph.color, background: `${ph.color}12` }}>
+                                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: ph.color, display: 'inline-block', flexShrink: 0 }} />
+                                                            {ph.title}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {roadmapMilestones.length > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '8px 12px', marginBottom: '1rem' }}>
+                                                    <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>⚠ {roadmapMilestones.length} jalon{roadmapMilestones.length > 1 ? 's' : ''} existant{roadmapMilestones.length > 1 ? 's' : ''} — l'IA ne les dupliquera pas.</span>
+                                                </div>
+                                            )}
+                                            <div className="rm-ai-sources" style={{ marginBottom: '0.75rem' }}>
+                                                <textarea placeholder="Instructions optionnelles — contraintes, livrables clés, dates importantes…" value={rmMsGenPrompt} onChange={e => setRmMsGenPrompt(e.target.value)} rows={2}
+                                                    style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontFamily: 'inherit', fontSize: '0.85rem', padding: '10px 12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                                            </div>
+                                            {!rmMsPreview && (
+                                                <button onClick={handleGenerateMilestones} disabled={rmMsGenerating}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 11, border: 'none', background: rmMsGenerating ? 'rgba(16,185,129,0.15)' : 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: rmMsGenerating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: rmMsGenerating ? 'none' : '0 4px 16px rgba(16,185,129,0.4)', transition: 'all 0.2s' }}>
+                                                    {rmMsGenerating ? <><span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} /> Génération en cours…</> : '◈ Générer les jalons'}
+                                                </button>
+                                            )}
+                                            {rmMsPreview && (
+                                                <div style={{ marginTop: '0.5rem' }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#34d399', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                                        {rmMsPreview.length} jalon{rmMsPreview.length !== 1 ? 's' : ''} générés
+                                                    </div>
+                                                    {roadmapPhases.map(ph => {
+                                                        const phaseMilestones = rmMsPreview.filter(m => m.phase_id === ph.id);
+                                                        if (!phaseMilestones.length) return null;
+                                                        return (
+                                                            <div key={ph.id} style={{ marginBottom: 12 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                                                    <span style={{ width: 8, height: 8, borderRadius: 2, background: ph.color, flexShrink: 0 }} />
+                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{ph.title}</span>
+                                                                </div>
+                                                                {phaseMilestones.map((m, i) => (
+                                                                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, marginBottom: 6 }}>
+                                                                        <span style={{ padding: '2px 7px', borderRadius: 6, fontSize: '0.66rem', fontWeight: 700, background: `${MCOL3[m.type] || '#f59e0b'}18`, color: MCOL3[m.type] || '#f59e0b', border: `1px solid ${MCOL3[m.type] || '#f59e0b'}30`, flexShrink: 0, marginTop: 1 }}>{MLBL3[m.type] || m.type}</span>
+                                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                                            <div style={{ fontSize: '0.87rem', fontWeight: 600, color: '#f4f4f5', marginBottom: 2 }}>{m.title}</div>
+                                                                            <div style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)' }}>{m.date} · {m.rationale}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                                        <button onClick={handleApplyMilestones} disabled={rmMsApplying}
+                                                            style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: rmMsApplying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(16,185,129,0.35)', transition: 'all 0.2s' }}>
+                                                            {rmMsApplying ? 'Application…' : `✓ Ajouter ${rmMsPreview.length} jalons à la roadmap`}
+                                                        </button>
+                                                        <button onClick={handleGenerateMilestones} disabled={rmMsGenerating}
+                                                            style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                                                            ↺ Regénérer
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
                                 {/* ── PHASE FORM ── */}
                                 {showPhaseForm && (
                                     <div className="rm-form">
@@ -4582,6 +4740,27 @@ export default function ObjectiveDetail() {
                                                 {d.creator_name && <span>👤 {d.creator_name}</span>}
                                             </div>
                                             {isPhase && d.description && <div className="rm-ddesc">{d.description}</div>}
+                                            {!isPhase && d.phase_id && (() => {
+                                                const linked = milestones.filter((m: any) => m.phase_id === d.phase_id);
+                                                const pending = linked.filter((m: any) => !m.completed);
+                                                const done = linked.length - pending.length;
+                                                if (linked.length === 0) return null;
+                                                return (
+                                                    <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                                                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.35)', fontWeight: 700, marginBottom: 8 }}>
+                                                            Étapes liées · {done}/{linked.length} complétées
+                                                        </div>
+                                                        {pending.slice(0, 5).map((m: any) => (
+                                                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)' }}>
+                                                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.text}</span>
+                                                            </div>
+                                                        ))}
+                                                        {pending.length > 5 && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>+{pending.length - 5} autres en attente</div>}
+                                                        {pending.length === 0 && <div style={{ fontSize: '0.72rem', color: '#10b981' }}>✓ Toutes les étapes sont complétées</div>}
+                                                    </div>
+                                                );
+                                            })()}
                                             {canEdit && (
                                                 <div className="rm-dfoot">
                                                     <button className="rm-edit-btn" onClick={() => { setRmEditing({ type: rmSelected.type, data: d }); setEditData(isPhase ? { title: d.title, color: d.color, start_date: d.start_date, end_date: d.end_date, description: d.description || '' } : { title: d.title, date: d.date, type: d.type, phase_id: d.phase_id || '' }); }}>
@@ -4702,9 +4881,18 @@ export default function ObjectiveDetail() {
                                                                 <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif" }}>{phase.title}</span>
                                                             </div>
                                                             <div style={{ flex: 1, position: 'relative', zIndex: 2, overflow: 'hidden' }}>
-                                                                <div onClick={() => setRmSelected(isSel ? null : { type: 'phase', data: phase })} style={{ position: 'absolute', left: x1, width: bw, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 6, background: `linear-gradient(135deg,${phase.color}CC,${phase.color}88)`, border: isSel ? `2px solid ${phase.color}` : `1px solid ${phase.color}55`, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.7rem', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: isSel ? `0 0 20px ${phase.color}44` : `0 2px 14px ${phase.color}33`, cursor: 'pointer', transition: 'all 0.15s' }}>
-                                                                    {bw > 60 && phase.title}
-                                                                </div>
+                                                                {(() => {
+                                                                    const phLinked = milestones.filter((m: any) => m.phase_id === phase.id);
+                                                                    const phDone = phLinked.filter((m: any) => m.completed).length;
+                                                                    const phPct = phLinked.length > 0 ? Math.round((phDone / phLinked.length) * 100) : 0;
+                                                                    return (
+                                                                        <div onClick={() => setRmSelected(isSel ? null : { type: 'phase', data: phase })} style={{ position: 'absolute', left: x1, width: bw, top: '50%', transform: 'translateY(-50%)', height: 26, borderRadius: 6, background: `linear-gradient(135deg,${phase.color}CC,${phase.color}88)`, border: isSel ? `2px solid ${phase.color}` : `1px solid ${phase.color}55`, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.7rem', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', boxShadow: isSel ? `0 0 20px ${phase.color}44` : `0 2px 14px ${phase.color}33`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                                                            {phLinked.length > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${phPct}%`, background: 'rgba(255,255,255,0.18)', borderRadius: 6, transition: 'width 0.4s ease', pointerEvents: 'none' }} />}
+                                                                            {bw > 60 && <span style={{ position: 'relative', zIndex: 1 }}>{phase.title}</span>}
+                                                                            {phLinked.length > 0 && bw > 80 && <span style={{ position: 'relative', zIndex: 1, marginLeft: 'auto', fontSize: '0.6rem', opacity: 0.8 }}>{phDone}/{phLinked.length}</span>}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </div>
                                                     );
@@ -4727,12 +4915,22 @@ export default function ObjectiveDetail() {
                                                                     const x = dateToX(ms.date);
                                                                     const col = MCOL[ms.type] || '#f59e0b';
                                                                     const isSel = rmSelected?.type === 'milestone' && rmSelected.data.id === ms.id;
+                                                                    const today2 = new Date(); today2.setHours(0,0,0,0);
+                                                                    const msDate = ms.date ? new Date(ms.date+'T00:00:00') : null;
+                                                                    const daysToMs = msDate ? Math.round((msDate.getTime() - today2.getTime()) / 86400000) : null;
+                                                                    const phPending = ms.phase_id ? milestones.filter((m: any) => m.phase_id === ms.phase_id && !m.completed).length : 0;
+                                                                    const isWarning = daysToMs !== null && daysToMs <= 3 && daysToMs >= 0 && phPending > 0;
+                                                                    const isLate = daysToMs !== null && daysToMs < 0 && phPending > 0;
+                                                                    const dotCol = isLate ? '#ef4444' : isWarning ? '#f59e0b' : col;
                                                                     return (
                                                                         <div key={ms.id} onClick={() => setRmSelected(isSel ? null : { type: 'milestone', data: ms })} style={{ position: 'absolute', left: x, top: '50%', transform: 'translateX(-50%) translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 8, cursor: 'pointer' }} title={`${ms.title} — ${MLBL[ms.type]}`}>
-                                                                            <div style={{ width: isSel ? 16 : 13, height: isSel ? 16 : 13, borderRadius: 3, transform: 'rotate(45deg)', background: col, boxShadow: isSel ? `0 0 20px ${col}AA, 0 0 8px ${col}` : `0 0 12px ${col}77`, flexShrink: 0, border: isSel ? '2px solid rgba(255,255,255,0.6)' : 'none', transition: 'all 0.15s' }} />
+                                                                            <div style={{ position: 'relative' }}>
+                                                                                <div style={{ width: isSel ? 16 : 13, height: isSel ? 16 : 13, borderRadius: 3, transform: 'rotate(45deg)', background: dotCol, boxShadow: isSel ? `0 0 20px ${dotCol}AA, 0 0 8px ${dotCol}` : `0 0 12px ${dotCol}77`, flexShrink: 0, border: isSel ? '2px solid rgba(255,255,255,0.6)' : 'none', transition: 'all 0.15s' }} />
+                                                                                {(isWarning || isLate) && <div style={{ position: 'absolute', top: -5, right: -6, width: 10, height: 10, borderRadius: '50%', background: isLate ? '#ef4444' : '#f59e0b', border: '1px solid rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.45rem', fontWeight: 900, color: '#fff', animation: 'pulse 1.5s infinite' }}>!</div>}
+                                                                            </div>
                                                                             <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                                                                 <div style={{ fontSize: '0.63rem', color: isSel ? '#fff' : 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', maxWidth: 88, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", fontWeight: isSel ? 600 : 400 }}>{ms.title}</div>
-                                                                                <div style={{ fontSize: '0.57rem', color: col, fontFamily: "'Outfit',sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{MLBL[ms.type]}</div>
+                                                                                <div style={{ fontSize: '0.57rem', color: dotCol, fontFamily: "'Outfit',sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isLate ? 'EN RETARD' : isWarning ? `⚠ J-${daysToMs}` : MLBL[ms.type]}</div>
                                                                             </div>
                                                                         </div>
                                                                     );
