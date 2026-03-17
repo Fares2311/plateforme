@@ -236,73 +236,58 @@ function DashboardContent() {
     return (
         <div className="container py-12 max-w-6xl mx-auto">
             {/* Header section */}
-            <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-                marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1.25rem',
-            }} className="fade-enter">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1.25rem' }} className="fade-enter">
                 <div>
-                    <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>
-                        {greeting}{displayName ? `, ${displayName}` : ''} 👋
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', margin: 0 }}>
+                            {greeting}{displayName ? `, ${displayName}` : ''} 👋
+                        </p>
+                        {objectives.length > 0 && (
+                            <span style={{ fontSize: '0.63rem', fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', color: '#a5b4fc', letterSpacing: '0.03em' }}>
+                                {objectives.length} objectif{objectives.length > 1 ? 's' : ''}
+                            </span>
+                        )}
+                        {projects.length > 0 && (
+                            <span style={{ fontSize: '0.63rem', fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)', color: '#6ee7b7', letterSpacing: '0.03em' }}>
+                                {projects.length} projet{projects.length > 1 ? 's' : ''}
+                            </span>
+                        )}
+                    </div>
                     <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, color: '#f4f4f5' }}>
                         {t('dash_title')}
                     </h2>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1rem', margin: '0.4rem 0 0', lineHeight: 1.5 }}>{t('dash_subtitle')}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.95rem', margin: '0.4rem 0 0', lineHeight: 1.5 }}>{t('dash_subtitle')}</p>
                 </div>
                 <button
                     onClick={handleOpenModal}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        padding: '12px 22px', borderRadius: '14px',
-                        background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
-                        color: '#fff', fontSize: '0.95rem', fontWeight: 700,
-                        border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                        boxShadow: '0 6px 24px rgba(99,102,241,0.35)',
-                        transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(99,102,241,0.5)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '11px 20px', borderRadius: '12px', background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', fontSize: '0.88rem', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 4px 18px rgba(99,102,241,0.3)', transition: 'all 0.2s ease', letterSpacing: '-0.01em' }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 26px rgba(99,102,241,0.48)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 18px rgba(99,102,241,0.3)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                    <Target size={17} /> {t('dash_btn_create')}
+                    <Target size={15} /> {t('dash_btn_create')}
                 </button>
             </div>
 
-            {/* TABS — segmented control */}
-            <div style={{
-                display: 'inline-flex', background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px',
-                padding: '4px', gap: '2px', marginBottom: '2.5rem',
-            }}>
+            {/* TABS — editorial underline */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                 {([
-                    { key: 'objectives', label: 'Mes Objectifs',  Icon: Target,      active: '#818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.35)'  },
-                    { key: 'projects',   label: 'Mes Projets',    Icon: FolderKanban, active: '#34d399', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.32)'  },
-                ] as const).map(tab => (
-                    <button
-                        key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '8px',
-                            padding: '10px 22px', borderRadius: '10px',
-                            fontSize: '0.93rem', fontWeight: 700,
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                            transition: 'all 0.2s ease',
-                            background: activeTab === tab.key ? tab.bg : 'transparent',
-                            color: activeTab === tab.key ? tab.active : 'rgba(255,255,255,0.4)',
-                            border: activeTab === tab.key ? `1px solid ${tab.border}` : '1px solid transparent',
-                        }}
-                    >
-                        <tab.Icon size={18} /> {tab.label}
-                        {activeTab === tab.key && (
-                            <span style={{
-                                fontSize: '0.7rem', fontWeight: 700, padding: '1px 7px',
-                                borderRadius: '20px', background: `${tab.active}20`, color: tab.active,
-                                marginLeft: '2px',
-                            }}>
-                                {tab.key === 'objectives' ? objectives.length : projects.length}
-                            </span>
-                        )}
-                    </button>
-                ))}
+                    { key: 'objectives', label: 'Objectifs', count: objectives.length, color: '#818cf8', Icon: Target },
+                    { key: 'projects',   label: 'Projets',   count: projects.length,   color: '#34d399', Icon: FolderKanban },
+                ] as const).map(tab => {
+                    const isAct = activeTab === tab.key;
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 20px 12px', fontSize: '0.88rem', fontWeight: isAct ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', background: 'transparent', color: isAct ? '#f4f4f5' : 'rgba(255,255,255,0.3)', border: 'none' }}
+                        >
+                            <tab.Icon size={14} style={{ opacity: isAct ? 1 : 0.5 }} />
+                            {tab.label}
+                            <span style={{ fontSize: '0.63rem', fontWeight: 700, padding: '1px 6px', borderRadius: 20, background: isAct ? tab.color + '20' : 'rgba(255,255,255,0.05)', color: isAct ? tab.color : 'rgba(255,255,255,0.25)' }}>{tab.count}</span>
+                            {isAct && <span style={{ position: 'absolute', bottom: -1, left: 16, right: 16, height: '2px', background: `linear-gradient(90deg, ${tab.color}, ${tab.color}80)`, borderRadius: '2px 2px 0 0', boxShadow: `0 0 8px ${tab.color}60` }} />}
+                        </button>
+                    );
+                })}
             </div>
 
             <div id="dashboard-list">
@@ -351,97 +336,49 @@ function DashboardContent() {
                                     <Link
                                         href={`/objective/${obj.id}`}
                                         key={obj.id}
-                                        className="fade-enter group"
-                                        style={{
-                                            position: 'relative',
-                                            animationDelay: `${i * 0.08}s`,
-                                            display: 'flex', flexDirection: 'column',
-                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            border: '1px solid rgba(255,255,255,0.05)',
-                                            background: 'linear-gradient(180deg, #18181b 0%, #0f0f12 100%)',
-                                            borderRadius: '16px',
-                                            padding: '1.5rem',
-                                            cursor: 'pointer',
-                                            overflow: 'hidden',
-                                            textDecoration: 'none'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-4px)';
-                                            e.currentTarget.style.boxShadow = `0 12px 30px -10px ${accentColor}50`;
-                                            e.currentTarget.style.borderColor = `${accentColor}50`;
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = 'none';
-                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
-                                        }}
+                                        className="fade-enter"
+                                        style={{ position: 'relative', animationDelay: `${i * 0.08}s`, display: 'flex', flexDirection: 'column', transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)', borderTop: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: `3px solid ${accentColor}`, background: 'rgba(14,14,18,0.95)', borderRadius: '14px', padding: '1.25rem 1.25rem 1.1rem 1.1rem', cursor: 'pointer', overflow: 'hidden', textDecoration: 'none' }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 10px 32px -8px ${accentColor}35, inset 0 0 40px ${accentColor}05`; e.currentTarget.style.borderTopColor = `${accentColor}30`; e.currentTarget.style.background = 'rgba(16,16,22,0.98)'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderTopColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.background = 'rgba(14,14,18,0.95)'; }}
                                     >
-                                        {/* Subtle Ambient Glow behind icon */}
-                                        <div style={{
-                                            position: 'absolute', top: '-20px', left: '-20px',
-                                            width: '100px', height: '100px',
-                                            background: `radial-gradient(circle, ${accentColor}40 0%, transparent 70%)`,
-                                            opacity: 0.6, pointerEvents: 'none', zIndex: 0
-                                        }}></div>
-
-                                        {/* Card Header (Icon + Title) */}
-                                        <div className="flex gap-4 items-start mb-4" style={{ position: 'relative', zIndex: 1 }}>
-                                            <div style={{
-                                                width: '3.5rem', height: '3.5rem', flexShrink: 0,
-                                                background: `${accentColor}1A`, // 10% opacity
-                                                borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                border: `1px solid ${accentColor}33`, // 20% opacity
-                                                color: accentColor
-                                            }}>
-                                                <CatIcon size={24} />
+                                        {/* Top row: icon + % */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
+                                            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: accentColor + '14', border: `1px solid ${accentColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor, flexShrink: 0 }}>
+                                                <CatIcon size={18} />
                                             </div>
-                                            <div className="flex-1 min-w-0 pt-1">
-                                                <h3 className="m-0 text-lg font-bold truncate text-slate-100 group-hover:text-white transition-colors" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                                                    {obj.title}
-                                                </h3>
-                                                <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                                    {Array.isArray(obj.category) ? (
-                                                        obj.category.map((cat: string) => (
-                                                            <span key={cat} className="badge" style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>{cat}</span>
-                                                        ))
-                                                    ) : (
-                                                        <span className="badge" style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>{obj.category}</span>
-                                                    )}
-                                                    <span className="badge" style={{
-                                                        fontSize: '0.7rem', padding: '2px 8px',
-                                                        ...(isPublic ? { borderColor: '#10b981', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)' } : { borderColor: '#64748b', color: '#94a3b8', background: 'rgba(100, 116, 139, 0.1)' })
-                                                    }}>
-                                                        {isPublic ? 'Public' : t('dash_private')}
-                                                    </span>
-                                                </div>
+                                            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: accentColor, lineHeight: 1, letterSpacing: '-0.05em' }}>{perc}<span style={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.55, letterSpacing: 0 }}>%</span></span>
+                                        </div>
+
+                                        {/* Title */}
+                                        <h3 style={{ margin: '0 0 0.55rem', fontSize: '1rem', fontWeight: 700, color: '#f1f1f3', letterSpacing: '-0.02em', lineHeight: 1.25, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+                                            {obj.title}
+                                        </h3>
+
+                                        {/* Badges */}
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+                                            {(Array.isArray(obj.category) ? obj.category : [obj.category]).filter(Boolean).map((cat: string) => (
+                                                <span key={cat} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: accentColor + '12', border: `1px solid ${accentColor}20`, color: accentColor, letterSpacing: '0.02em' }}>{cat}</span>
+                                            ))}
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, ...(isPublic ? { background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' } : { background: 'rgba(100,116,139,0.07)', border: '1px solid rgba(100,116,139,0.16)', color: '#94a3b8' }) }}>
+                                                {isPublic ? '◉ Public' : '◎ Privé'}
+                                            </span>
+                                        </div>
+
+                                        {/* Progress */}
+                                        <div style={{ marginTop: 'auto' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.28)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Progression</span>
+                                                <span style={{ fontSize: '0.73rem', fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>{fmtHours(obj.my_completed_hours ?? 0)}<span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}> / {obj.target_hours}h</span></span>
+                                            </div>
+                                            <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                                                <div style={{ width: `${perc}%`, height: '100%', background: `linear-gradient(90deg, ${accentColor}90, ${accentColor})`, boxShadow: `0 0 10px ${accentColor}55`, borderRadius: '2px', transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                                             </div>
                                         </div>
 
-                                        {/* Progress Section */}
-                                        <div className="mt-auto pt-5 border-t border-white/5" style={{ position: 'relative', zIndex: 1 }}>
-                                            <div className="flex justify-between items-end mb-2">
-                                                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Progression</span>
-                                                <div className="text-right">
-                                                    <span className="text-lg font-bold leading-none text-slate-100">{fmtHours(obj.my_completed_hours ?? 0)}</span>
-                                                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}> / {obj.target_hours}h {obj.goal_frequency === 'daily' ? '/ jour' : obj.goal_frequency === 'weekly' ? '/ semaine' : obj.goal_frequency === 'monthly' ? '/ mois' : ''}</span>
-                                                </div>
-                                            </div>
-                                            <div style={{ height: '4px', borderRadius: '2px', background: 'rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                                                <div style={{
-                                                    width: `${perc}%`, height: '100%', borderRadius: '2px',
-                                                    background: accentColor,
-                                                    boxShadow: `0 0 8px ${accentColor}`,
-                                                    transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
-                                                }}></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Card Footer */}
-                                        <div className="mt-5 flex justify-between items-center text-sm" style={{ color: 'rgba(255,255,255,0.4)', position: 'relative', zIndex: 1, transition: 'color 0.3s' }}>
-                                            <div className="flex items-center gap-1.5 font-medium"><Users size={14} /> {obj.participants_count} {t('dash_members')}</div>
-                                            <div className="flex items-center gap-1.5 font-semibold" style={{ color: accentColor }}>
-                                                Aperçu <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                            </div>
+                                        {/* Footer */}
+                                        <div style={{ marginTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.7rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'rgba(255,255,255,0.28)', fontWeight: 500 }}><Users size={11} /> {obj.participants_count}</div>
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: accentColor, letterSpacing: '0.02em' }}>Ouvrir →</span>
                                         </div>
                                     </Link>
                                 );
@@ -492,69 +429,40 @@ function DashboardContent() {
                                     <Link
                                         href={`/project/${proj.id}`}
                                         key={proj.id}
-                                        className="fade-enter group"
-                                        style={{
-                                            position: 'relative',
-                                            animationDelay: `${i * 0.08}s`,
-                                            display: 'flex', flexDirection: 'column',
-                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            border: '1px solid rgba(255,255,255,0.05)',
-                                            background: 'linear-gradient(180deg, #18181b 0%, #0f0f12 100%)',
-                                            borderRadius: '16px',
-                                            padding: '1.5rem',
-                                            cursor: 'pointer',
-                                            overflow: 'hidden',
-                                            textDecoration: 'none'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-4px)';
-                                            e.currentTarget.style.boxShadow = `0 12px 30px -10px ${accentColor}50`;
-                                            e.currentTarget.style.borderColor = `${accentColor}50`;
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = 'none';
-                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
-                                        }}
+                                        className="fade-enter"
+                                        style={{ position: 'relative', animationDelay: `${i * 0.08}s`, display: 'flex', flexDirection: 'column', transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)', borderTop: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', borderLeft: `3px solid ${accentColor}`, background: 'rgba(14,14,18,0.95)', borderRadius: '14px', padding: '1.25rem 1.25rem 1.1rem 1.1rem', cursor: 'pointer', overflow: 'hidden', textDecoration: 'none', minHeight: '160px' }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 10px 32px -8px ${accentColor}35, inset 0 0 40px ${accentColor}05`; e.currentTarget.style.borderTopColor = `${accentColor}30`; e.currentTarget.style.background = 'rgba(16,16,22,0.98)'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderTopColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.background = 'rgba(14,14,18,0.95)'; }}
                                     >
-                                        <div style={{
-                                            position: 'absolute', top: '-20px', left: '-20px',
-                                            width: '100px', height: '100px',
-                                            background: `radial-gradient(circle, ${accentColor}40 0%, transparent 70%)`,
-                                            opacity: 0.6, pointerEvents: 'none', zIndex: 0
-                                        }}></div>
-
-                                        <div className="flex gap-4 items-start mb-4" style={{ position: 'relative', zIndex: 1 }}>
-                                            <div style={{
-                                                width: '3.5rem', height: '3.5rem', flexShrink: 0,
-                                                background: `${accentColor}1A`,
-                                                borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                border: `1px solid ${accentColor}33`,
-                                                color: accentColor
-                                            }}>
-                                                <CatIcon size={24} />
+                                        {/* Top row: icon + role badge */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
+                                            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: accentColor + '14', border: `1px solid ${accentColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accentColor, flexShrink: 0 }}>
+                                                <CatIcon size={18} />
                                             </div>
-                                            <div className="flex-1 min-w-0 pt-1">
-                                                <h3 className="m-0 text-lg font-bold truncate text-slate-100 group-hover:text-white transition-colors" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                                                    {proj.title}
-                                                </h3>
-                                                <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                                    <span className="badge" style={{
-                                                        fontSize: '0.7rem', padding: '2px 8px',
-                                                        ...(isPublic ? { borderColor: '#10b981', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)' } : { borderColor: '#64748b', color: '#94a3b8', background: 'rgba(100, 116, 139, 0.1)' })
-                                                    }}>
-                                                        {isPublic ? 'Public' : 'Privé'}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                            {proj.role && (
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: proj.role === 'admin' ? 'rgba(249,115,22,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${proj.role === 'admin' ? 'rgba(249,115,22,0.25)' : 'rgba(255,255,255,0.1)'}`, color: proj.role === 'admin' ? '#fb923c' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{proj.role}</span>
+                                            )}
                                         </div>
 
-                                        {/* Card Footer */}
-                                        <div className="mt-auto pt-5 flex justify-between items-center text-sm border-t border-white/5" style={{ color: 'rgba(255,255,255,0.4)', position: 'relative', zIndex: 1, transition: 'color 0.3s' }}>
-                                            <div className="flex items-center gap-1.5 font-medium"><Users size={14} /> {proj.participants_count || 1} {t('dash_members')}</div>
-                                            <div className="flex items-center gap-1.5 font-semibold" style={{ color: accentColor }}>
-                                                Accéder au projet <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                            </div>
+                                        {/* Title */}
+                                        <h3 style={{ margin: '0 0 0.55rem', fontSize: '1rem', fontWeight: 700, color: '#f1f1f3', letterSpacing: '-0.02em', lineHeight: 1.25, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+                                            {proj.title}
+                                        </h3>
+
+                                        {/* Badges */}
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                                            {(Array.isArray(proj.category) ? proj.category : [proj.category]).filter(Boolean).map((cat: string) => (
+                                                <span key={cat} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: accentColor + '12', border: `1px solid ${accentColor}20`, color: accentColor, letterSpacing: '0.02em' }}>{cat}</span>
+                                            ))}
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, ...(isPublic ? { background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' } : { background: 'rgba(100,116,139,0.07)', border: '1px solid rgba(100,116,139,0.16)', color: '#94a3b8' }) }}>
+                                                {isPublic ? '◉ Public' : '◎ Privé'}
+                                            </span>
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.7rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'rgba(255,255,255,0.28)', fontWeight: 500 }}><Users size={11} /> {proj.participants_count || 1}</div>
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: accentColor, letterSpacing: '0.02em' }}>Ouvrir →</span>
                                         </div>
                                     </Link>
                                 );
