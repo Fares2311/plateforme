@@ -4975,62 +4975,51 @@ export default function ObjectiveDetail() {
             {showEditObjModal && (
                 <div
                     className="modal-backdrop fade-enter flex items-center justify-center p-4"
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)', zIndex: 1000 }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(18px)', zIndex: 1000 }}
                     onClick={e => { if (e.target === e.currentTarget) { setShowEditObjModal(false); setNavbarVisible(true); } }}
                 >
-                    <div
-                        className="card glass-panel w-full relative shadow-2xl no-scrollbar"
-                        style={{ maxWidth: '620px', border: '1px solid rgba(255,255,255,0.1)', padding: '0', overflow: 'hidden', maxHeight: '90vh', overflowY: 'auto', animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}
-                    >
-                        {/* Modal Top Banner */}
-                        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(236,72,153,0.1))', padding: '1.75rem 2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                            <button onClick={() => { setShowEditObjModal(false); setNavbarVisible(true); }} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.6)' }} className="hover:text-white">
-                                <X size={16} />
-                            </button>
-                            <div className="flex items-center gap-4">
-                                <div style={{ background: 'rgba(99,102,241,0.2)', padding: '12px', borderRadius: '14px', border: '1px solid rgba(99,102,241,0.3)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Edit3 className="text-primary" size={26} />
+                    <div style={{ width: '100%', maxWidth: '580px', background: 'rgba(11,11,16,0.98)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', overflow: 'hidden', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.03)', animation: 'scaleUp 0.28s cubic-bezier(0.16, 1, 0.3, 1)', scrollbarWidth: 'none' as const }}>
+
+                        {/* Header */}
+                        <div style={{ padding: '1.35rem 1.75rem 1.2rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+                                <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Edit3 size={16} style={{ color: '#818cf8' }} />
                                 </div>
-                                <div className="flex flex-col justify-center">
-                                    <h3 className="m-0 text-xl font-bold" style={{ lineHeight: '1', marginBottom: '4px', marginTop: '15px' }}>Modifier le salon</h3>
-                                    <p className="m-0 text-sm opacity-60" style={{ lineHeight: '1' }}>Ajustez les paramètres de votre objectif</p>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#eeeef2', letterSpacing: '-0.02em' }}>Modifier le salon</h3>
+                                    <p style={{ margin: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.32)' }}>Ajustez les paramètres de votre objectif</p>
                                 </div>
                             </div>
+                            <button onClick={() => { setShowEditObjModal(false); setNavbarVisible(true); }} style={{ width: '28px', height: '28px', borderRadius: '7px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', transition: 'all 0.15s', flexShrink: 0 }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+                                <X size={13} />
+                            </button>
                         </div>
 
-                        <form onSubmit={handleUpdateObjective} className="flex flex-col gap-6" style={{ padding: '1.75rem 2rem' }}>
-                            {/* Title */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-semibold text-slate-300">Titre de l'objectif <span className="text-red-400">*</span></label>
-                                <input
-                                    type="text" className="input"
-                                    placeholder="Ex: Coder un SaaS"
-                                    required
-                                    value={editObjTitle} onChange={e => setEditObjTitle(e.target.value)}
-                                    style={{ fontSize: '1rem' }}
-                                />
-                            </div>
+                        <form onSubmit={handleUpdateObjective} style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.6rem' }}>
 
-                            {/* Description */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-semibold text-slate-300">Description <span className="text-xs opacity-40">(optionnel)</span></label>
-                                <textarea
-                                    className="input" rows={2}
-                                    placeholder="Détails du projet..."
-                                    value={editObjDesc} onChange={e => setEditObjDesc(e.target.value)}
-                                    style={{ resize: 'vertical', minHeight: '64px' }}
-                                />
-                            </div>
-
-                            {/* Category visual picker */}
-                            <div className="flex flex-col gap-2">
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <label className="text-sm font-semibold text-slate-300">Catégorie <span className="text-red-400">*</span></label>
-                                    <span style={{ fontSize: '0.72rem', color: editObjCats.length >= 3 ? '#f59e0b' : '#71717a' }}>
-                                        {editObjCats.length}/3 max
-                                    </span>
+                            {/* — Informations — */}
+                            <div>
+                                <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)', marginBottom: '0.8rem' }}>Informations</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '5px' }}>Titre <span style={{ color: '#f87171' }}>*</span></label>
+                                        <input type="text" className="input" placeholder="Ex: Coder un SaaS" required value={editObjTitle} onChange={e => setEditObjTitle(e.target.value)} style={{ fontSize: '0.9rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: '9px 13px', transition: 'border-color 0.15s, box-shadow 0.15s' }} onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.45)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.09)'; }} onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '5px' }}>Description <span style={{ fontSize: '0.65rem', fontWeight: 400, color: 'rgba(255,255,255,0.22)' }}>(optionnel)</span></label>
+                                        <textarea className="input" rows={2} placeholder="Décrivez votre objectif..." value={editObjDesc} onChange={e => setEditObjDesc(e.target.value)} style={{ resize: 'vertical', minHeight: '62px', fontSize: '0.88rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: '9px 13px', transition: 'border-color 0.15s, box-shadow 0.15s' }} onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.45)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.09)'; }} onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }} />
+                                    </div>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px' }}>
+                            </div>
+
+                            {/* — Catégorie — */}
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                                    <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)' }}>Catégorie</div>
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 7px', borderRadius: 20, background: editObjCats.length >= 3 ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)', color: editObjCats.length >= 3 ? '#fbbf24' : 'rgba(255,255,255,0.25)' }}>{editObjCats.length}/3 max</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '6px' }}>
                                     {[
                                         { id: 'Code', label: 'Code', icon: Code, color: '#6366f1' },
                                         { id: 'Design', label: 'Design', icon: Palette, color: '#ec4899' },
@@ -5048,72 +5037,33 @@ export default function ObjectiveDetail() {
                                         return (
                                             <div
                                                 key={cat.id}
-                                                onClick={() => {
-                                                    if (isDisabled) return;
-                                                    setEditObjCats(prev =>
-                                                        prev.includes(cat.id)
-                                                            ? prev.filter(c => c !== cat.id)
-                                                            : [...prev, cat.id]
-                                                    );
-                                                }}
-                                                style={{
-                                                    cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                    opacity: isDisabled ? 0.35 : 1,
-                                                    display: 'flex', flexDirection: 'column',
-                                                    alignItems: 'center', gap: '6px', padding: '10px 6px',
-                                                    borderRadius: '12px',
-                                                    border: isSelected ? `2px solid ${cat.color}` : '2px solid rgba(255,255,255,0.06)',
-                                                    background: isSelected ? `${cat.color}18` : 'rgba(255,255,255,0.02)',
-                                                    transition: 'all 0.15s',
-                                                }}
+                                                onClick={() => { if (isDisabled) return; setEditObjCats(prev => prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]); }}
+                                                style={{ cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.28 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', padding: '9px 5px 7px', borderRadius: '10px', border: isSelected ? `1.5px solid ${cat.color}55` : '1.5px solid rgba(255,255,255,0.05)', background: isSelected ? `${cat.color}12` : 'rgba(255,255,255,0.02)', transition: 'all 0.13s', position: 'relative' }}
                                             >
-                                                <div style={{ background: `${cat.color}22`, borderRadius: '8px', padding: '6px', display: 'flex' }}>
-                                                    <CatIcon size={18} style={{ color: cat.color }} />
+                                                {isSelected && <div style={{ position: 'absolute', top: '4px', right: '4px', width: '12px', height: '12px', borderRadius: '50%', background: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#fff', fontWeight: 900, lineHeight: 1 }}>✓</div>}
+                                                <div style={{ background: isSelected ? `${cat.color}1e` : 'rgba(255,255,255,0.05)', borderRadius: '7px', padding: '5px', display: 'flex' }}>
+                                                    <CatIcon size={15} style={{ color: isSelected ? cat.color : 'rgba(255,255,255,0.35)' }} />
                                                 </div>
-                                                <span style={{ fontSize: '11px', fontWeight: isSelected ? 700 : 500, color: isSelected ? cat.color : 'rgba(255,255,255,0.5)' }}>{cat.label}</span>
+                                                <span style={{ fontSize: '10px', fontWeight: isSelected ? 700 : 500, color: isSelected ? cat.color : 'rgba(255,255,255,0.35)', letterSpacing: '0.01em' }}>{cat.label}</span>
                                             </div>
                                         );
                                     })}
                                 </div>
-                                {/* fallback custom input if none selected */}
                                 {editObjCats.length === 0 && (
-                                    <input type="text" className="input mt-1" placeholder="Ou tapez une catégorie personnalisée"
-                                        onChange={e => setEditObjCats([e.target.value])} style={{ fontSize: '0.875rem' }} />
+                                    <input type="text" className="input" placeholder="Ou tapez une catégorie personnalisée" onChange={e => setEditObjCats([e.target.value])} style={{ fontSize: '0.82rem', marginTop: '7px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px' }} />
                                 )}
                             </div>
 
-                            {/* Hours presets */}
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-semibold text-slate-300">Nombre d'heures cible <span className="text-red-400">*</span></label>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* — Objectif horaire — */}
+                            <div>
+                                <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)', marginBottom: '0.8rem' }}>Objectif horaire</div>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                     {HOUR_PRESETS.map(h => (
-                                        <button
-                                            key={h} type="button"
-                                            onClick={() => setEditObjHours(String(h))}
-                                            style={{
-                                                padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 600,
-                                                cursor: 'pointer', transition: 'all 0.15s',
-                                                border: editObjHours === String(h) ? '2px solid rgba(99,102,241,0.8)' : '2px solid rgba(255,255,255,0.08)',
-                                                background: editObjHours === String(h) ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                                                color: editObjHours === String(h) ? 'rgba(165,180,252,1)' : 'rgba(255,255,255,0.5)',
-                                            }}
-                                        >{h}h</button>
+                                        <button key={h} type="button" onClick={() => setEditObjHours(String(h))} style={{ padding: '5px 13px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.13s', border: editObjHours === String(h) ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.07)', background: editObjHours === String(h) ? 'rgba(99,102,241,0.13)' : 'rgba(255,255,255,0.03)', color: editObjHours === String(h) ? '#a5b4fc' : 'rgba(255,255,255,0.38)', boxShadow: editObjHours === String(h) ? '0 0 10px rgba(99,102,241,0.13)' : 'none' }}>{h}h</button>
                                     ))}
-                                    <div className="flex gap-2 items-center flex-1">
-                                        <input
-                                            type="number" min="1" max="9999"
-                                            value={editObjHours}
-                                            onChange={e => setEditObjHours(e.target.value)}
-                                            placeholder="Nombre"
-                                            className="input"
-                                            style={{ width: '80px', padding: '6px 10px', fontSize: '13px', textAlign: 'center' }}
-                                        />
-                                        <select
-                                            className="input"
-                                            value={editObjFreq}
-                                            onChange={e => setEditObjFreq(e.target.value)}
-                                            style={{ flex: 1, padding: '6px 10px', fontSize: '13px' }}
-                                        >
+                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <input type="number" min="1" max="9999" value={editObjHours} onChange={e => setEditObjHours(e.target.value)} className="input" style={{ width: '64px', padding: '5px 8px', fontSize: '0.77rem', textAlign: 'center', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
+                                        <select className="input" value={editObjFreq} onChange={e => setEditObjFreq(e.target.value)} style={{ padding: '5px 8px', fontSize: '0.77rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                                             <option value="total">Total</option>
                                             <option value="daily">Par jour</option>
                                             <option value="weekly">Par semaine</option>
@@ -5123,51 +5073,42 @@ export default function ObjectiveDetail() {
                                 </div>
                             </div>
 
-                            {/* Formation E-learning */}
-                            <div className="flex flex-col gap-1.5">
-                                <label className="text-sm font-semibold text-slate-300">Lien vers une formation E-learning <span className="text-xs opacity-40">(optionnel)</span></label>
-                                <input
-                                    type="url" className="input"
-                                    placeholder="https://www.udemy... ou coursera..."
-                                    value={editObjLearningLink} onChange={e => setEditObjLearningLink(e.target.value)}
-                                    style={{ fontSize: '0.95rem' }}
-                                />
+                            {/* — Formation — */}
+                            <div>
+                                <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)', marginBottom: '0.8rem' }}>Formation E-learning <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.15)', fontSize: '0.62rem' }}>(optionnel)</span></div>
+                                <input type="url" className="input" placeholder="https://www.udemy.com/..." value={editObjLearningLink} onChange={e => setEditObjLearningLink(e.target.value)} style={{ fontSize: '0.88rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', padding: '9px 13px', transition: 'border-color 0.15s, box-shadow 0.15s' }} onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.45)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.09)'; }} onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }} />
                             </div>
 
-                            {/* Visibility toggle */}
-                            <div
-                                onClick={() => setEditObjPublic(!editObjPublic)}
-                                style={{
-                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px',
-                                    padding: '14px 16px', borderRadius: '14px', transition: 'all 0.2s',
-                                    background: editObjPublic ? 'rgba(34,197,94,0.07)' : 'rgba(255,255,255,0.03)',
-                                    border: editObjPublic ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                                }}
-                            >
-                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: editObjPublic ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)' }}>
-                                    {editObjPublic ? <Globe size={20} style={{ color: '#4ade80' }} /> : <Lock size={20} style={{ color: 'rgba(255,255,255,0.4)' }} />}
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '14px', fontWeight: 600, color: editObjPublic ? '#4ade80' : 'rgba(255,255,255,0.8)', marginBottom: '2px' }}>
-                                        {editObjPublic ? 'Salon Public' : 'Salon Privé'}
+                            {/* — Visibilité — */}
+                            <div>
+                                <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)', marginBottom: '0.8rem' }}>Visibilité</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px' }}>
+                                    <div onClick={() => setEditObjPublic(false)} style={{ cursor: 'pointer', padding: '11px 13px', borderRadius: '10px', border: !editObjPublic ? '1.5px solid rgba(100,116,139,0.45)' : '1.5px solid rgba(255,255,255,0.05)', background: !editObjPublic ? 'rgba(100,116,139,0.08)' : 'rgba(255,255,255,0.02)', transition: 'all 0.14s', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Lock size={13} style={{ color: !editObjPublic ? '#94a3b8' : 'rgba(255,255,255,0.22)', flexShrink: 0 }} />
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: !editObjPublic ? '#cbd5e1' : 'rgba(255,255,255,0.32)', flex: 1 }}>Privé</span>
+                                            {!editObjPublic && <div style={{ width: '13px', height: '13px', borderRadius: '50%', background: 'rgba(100,116,139,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>✓</div>}
+                                        </div>
+                                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', lineHeight: 1.3 }}>Sur invitation uniquement</span>
                                     </div>
-                                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                                        {editObjPublic ? 'Visible par tous dans le portail d\'exploration.' : 'Accessible uniquement sur invitation.'}
+                                    <div onClick={() => setEditObjPublic(true)} style={{ cursor: 'pointer', padding: '11px 13px', borderRadius: '10px', border: editObjPublic ? '1.5px solid rgba(34,197,94,0.38)' : '1.5px solid rgba(255,255,255,0.05)', background: editObjPublic ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)', transition: 'all 0.14s', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Globe size={13} style={{ color: editObjPublic ? '#4ade80' : 'rgba(255,255,255,0.22)', flexShrink: 0 }} />
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: editObjPublic ? '#86efac' : 'rgba(255,255,255,0.32)', flex: 1 }}>Public</span>
+                                            {editObjPublic && <div style={{ width: '13px', height: '13px', borderRadius: '50%', background: 'rgba(34,197,94,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#fff', fontWeight: 900, flexShrink: 0 }}>✓</div>}
+                                        </div>
+                                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', lineHeight: 1.3 }}>Visible dans Explorer</span>
                                     </div>
-                                </div>
-                                {/* Toggle switch */}
-                                <div style={{ width: '44px', height: '24px', borderRadius: '12px', background: editObjPublic ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)', border: editObjPublic ? '1px solid rgba(34,197,94,0.5)' : '1px solid rgba(255,255,255,0.15)', position: 'relative', flexShrink: 0, transition: 'all 0.2s' }}>
-                                    <div style={{ position: 'absolute', top: '3px', left: editObjPublic ? '22px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: editObjPublic ? '#4ade80' : 'rgba(255,255,255,0.5)', transition: 'left 0.2s' }} />
                                 </div>
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex justify-end gap-3 pt-4 border-t border-white/8">
-                                <button type="button" className="btn btn-ghost px-6" onClick={() => { setShowEditObjModal(false); setNavbarVisible(true); }}>
+                            {/* Footer */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '0.1rem' }}>
+                                <button type="button" onClick={() => { setShowEditObjModal(false); setNavbarVisible(true); }} style={{ padding: '8px 16px', borderRadius: '9px', fontSize: '0.82rem', fontWeight: 600, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.42)', cursor: 'pointer', transition: 'all 0.15s' }} onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }} onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.42)'; }}>
                                     Annuler
                                 </button>
-                                <button type="submit" className="btn btn-primary" disabled={updatingObj}>
-                                    {updatingObj ? 'Sauvegarde...' : 'Sauvegarder'} <Save size={18} />
+                                <button type="submit" disabled={updatingObj} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '9px', fontSize: '0.82rem', fontWeight: 700, background: updatingObj ? 'rgba(99,102,241,0.35)' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', border: 'none', cursor: updatingObj ? 'not-allowed' : 'pointer', boxShadow: updatingObj ? 'none' : '0 3px 14px rgba(99,102,241,0.3)', transition: 'all 0.15s', letterSpacing: '-0.01em' }}>
+                                    <Save size={13} /> {updatingObj ? 'Sauvegarde...' : 'Sauvegarder'}
                                 </button>
                             </div>
                         </form>
@@ -5175,7 +5116,7 @@ export default function ObjectiveDetail() {
                 </div>
             )}
 
-            {/* Custom Delete Confirmation Modal */}
+                        {/* Custom Delete Confirmation Modal */}
             {showDeleteConfirm && (
                 <>
                     <div
