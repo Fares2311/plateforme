@@ -208,7 +208,7 @@ export default function Register() {
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
                         <Zap size={22} style={{ color: '#6366f1', fill: '#6366f1' }} />
-                        <span style={{ fontSize: '1.3rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.03em' }}>Gitsync</span>
+                        <span style={{ fontSize: '1.3rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.03em' }}>Synkra</span>
                     </div>
                     <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem', margin: 0 }}>Crée ton compte gratuitement</p>
                 </div>

@@ -76,7 +76,7 @@ export default function Login() {
             fontSize: '0.8rem', fontWeight: 900, color: '#fff',
             boxShadow: '0 4px 16px rgba(99,102,241,0.35)',
           }}>G</div>
-          <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f4f4f5', letterSpacing: '-0.02em' }}>Gitsync</span>
+          <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f4f4f5', letterSpacing: '-0.02em' }}>Synkra</span>
         </div>
 
         {/* Main copy */}

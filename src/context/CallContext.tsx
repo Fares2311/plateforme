@@ -699,7 +699,7 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ color: 'white', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>{activeProfile?.full_name || '...'}</div>
                                 <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                                    {callState === 'connected' ? 'En ligne' : 'Gitsync Appels'}
+                                    {callState === 'connected' ? 'En ligne' : 'Synkra Appels'}
                                 </div>
                             </div>
                         </div>

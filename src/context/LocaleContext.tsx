@@ -22,14 +22,14 @@ export const LocaleProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         // Load from local storage
-        const stored = localStorage.getItem('gitsync_lang') as Language;
+        const stored = localStorage.getItem('synkra_lang') as Language;
         if (stored && (stored === 'fr' || stored === 'en')) {
             setLocaleState(stored);
         }
     }, []);
 
     const setLocale = (lang: Language) => {
-        localStorage.setItem('gitsync_lang', lang);
+        localStorage.setItem('synkra_lang', lang);
         setLocaleState(lang);
     };
 

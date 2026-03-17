@@ -720,7 +720,7 @@ export default function Home() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg,#6366f1,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 900, color: '#fff' }}>G</div>
-            <span style={{ fontWeight: 700 }}>Gitsync</span>
+            <span style={{ fontWeight: 700 }}>Synkra</span>
             <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.82rem' }}>© {new Date().getFullYear()}</span>
           </div>
           <div style={{ display: 'flex', gap: '2rem', fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)' }}>

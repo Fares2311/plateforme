@@ -1204,7 +1204,7 @@ export default function AccountabilityDetail() {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 18px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <Zap size={18} style={{ color: '#6366f1', fill: '#6366f1' }} />
-                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f8f9fa', letterSpacing: '-0.03em' }}>Gitsync</span>
+                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f8f9fa', letterSpacing: '-0.03em' }}>Synkra</span>
                                 </div>
                                 <button onClick={() => setNavOpen(false)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#71717a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#e4e4e7'; }}
@@ -1853,7 +1853,9 @@ export default function AccountabilityDetail() {
                                                     <div className="rc-file-info">
                                                         <div className="rc-file-name">{r.title}</div>
                                                         {r.type === 'link' && r.url && (
-                                                            <a href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.73rem', color: '#818cf8', wordBreak: 'break-all', textDecoration: 'none' }}>{r.url}</a>
+                                                            <a href={r.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.73rem', color: '#818cf8', textDecoration: 'none' }} title={r.url}>
+                                                                {(() => { try { return new URL(r.url).hostname.replace(/^www\./, ''); } catch { return r.url; } })()}
+                                                            </a>
                                                         )}
                                                         {r.type === 'note' && r.content && (
                                                             <p style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)', margin: '3px 0 0', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{r.content}</p>

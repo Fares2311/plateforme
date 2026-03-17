@@ -872,7 +872,7 @@ export default function Profile() {
                                 </div>
                                 <div className="flex flex-col justify-center">
                                     <h3 className="m-0 text-xl font-bold" style={{ lineHeight: '1', marginBottom: '4px', marginTop: '15px' }}>Choisir un Avatar</h3>
-                                    <p className="m-0 text-sm opacity-60" style={{ lineHeight: '1' }}>Personnalisez votre présence sur Gitsync</p>
+                                    <p className="m-0 text-sm opacity-60" style={{ lineHeight: '1' }}>Personnalisez votre présence sur Synkra</p>
                                 </div>
                             </div>
                         </div>

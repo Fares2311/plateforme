@@ -241,7 +241,7 @@ export default function Navbar() {
                                     )}
                                 </div>
                                 <span style={{ fontSize: '.92rem', fontWeight: 800, letterSpacing: '-0.035em', color: '#f2f2ff' }}>
-                                    Gitsync
+                                    Synkra
                                 </span>
                                 {isWorking && (
                                     <span style={{ fontSize: '.58rem', fontWeight: 700, color: '#10b981', letterSpacing: '.05em', opacity: .9 }}>FOCUS</span>

@@ -901,7 +901,7 @@ function SessionPage() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 18px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <Zap size={18} style={{ color: '#6366f1', fill: '#6366f1' }} />
-                                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f8f9fa', letterSpacing: '-0.03em' }}>Gitsync</span>
+                                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f8f9fa', letterSpacing: '-0.03em' }}>Synkra</span>
                             </div>
                             <button onClick={() => setNavOpen(false)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: '#71717a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#e4e4e7'; }}

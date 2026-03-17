@@ -14,7 +14,7 @@ import AccCallOverlay from "@/components/AccCallOverlay";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Gitsync - Accountability Partner",
+  title: "Synkra - Accountability Partner",
   description: "Atteignez vos objectifs ensemble.",
 };
 
